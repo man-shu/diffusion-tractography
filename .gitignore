@@ -1,0 +1,10 @@
+*.egg-info
+*__pycache__/
+crash*
+diffusion_pipelines/build
+*.DS_Store*
+data/*
+config-fullres.cfg
+*/*.pdf
+.deprecated
+*__init__*

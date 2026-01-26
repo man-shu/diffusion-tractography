@@ -1,0 +1,107 @@
+name: Singularity build
+
+# Only trigger, when the Docker build workflow succeeded
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Docker build"]
+    types:
+      - completed
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  FORCE_COLOR: true
+
+jobs:
+  build-singularity:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 200
+          fetch-tags: true
+
+      - name: Setup Docker buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+      - name: Set up Go 1.13 for Singularity
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.13
+        id: go
+
+      - name: Install Dependencies for Singularity
+        run: |
+          sudo apt-get update && sudo apt-get install -y \
+            build-essential \
+            libssl-dev \
+            uuid-dev \
+            libgpgme11-dev \
+            squashfs-tools \
+            libseccomp-dev \
+            pkg-config
+
+      - name: Install Singularity
+        env:
+          SINGULARITY_VERSION: 3.8.1
+          GOPATH: /tmp/go
+        run: |
+          mkdir -p $GOPATH
+          sudo mkdir -p /usr/local/var/singularity/mnt && \
+          mkdir -p $GOPATH/src/github.com/sylabs && \
+          cd $GOPATH/src/github.com/sylabs && \
+          wget -qO- https://github.com/sylabs/singularity/releases/download/v${SINGULARITY_VERSION}/singularity-ce-${SINGULARITY_VERSION}.tar.gz | \
+          tar xzv && \
+          cd singularity-ce-${SINGULARITY_VERSION} && \
+          ./mconfig -p /usr/local && \
+          make -C builddir && \
+          sudo make -C builddir install
+
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          # this might remove tools that are actually needed,
+          # if set to "true" but frees about 6 GB
+          tool-cache: false
+
+          # all of these default to true, but feel free to set to
+          # "false" if necessary for your workflow
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Build Singularity image
+        run: |
+          singularity build diffusion_pipelines.sif docker://${{ env.DOCKER_METADATA_OUTPUT_TAGS }}
+
+      - name: Login and Deploy Container
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | singularity remote login -u ${{ github.actor }} --password-stdin oras://${{ env.REGISTRY }}          
+          FIRST_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n 1)
+          TAG_SUFFIX=$(echo "$FIRST_TAG" | sed "s|${{ env.REGISTRY }}/${{ github.repository }}:||")
+          singularity push diffusion_pipelines.sif oras://${{ env.REGISTRY }}/${{ github.repository }}:${TAG_SUFFIX}_singularity
