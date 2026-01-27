@@ -97,11 +97,11 @@ jobs:
 
       - name: Build Singularity image
         run: |
-          singularity build diffusion_pipelines.sif docker://${{ env.DOCKER_METADATA_OUTPUT_TAGS }}
+          singularity build tractography.sif docker://${{ env.DOCKER_METADATA_OUTPUT_TAGS }}
 
       - name: Login and Deploy Container
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | singularity remote login -u ${{ github.actor }} --password-stdin oras://${{ env.REGISTRY }}          
           FIRST_TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n 1)
           TAG_SUFFIX=$(echo "$FIRST_TAG" | sed "s|${{ env.REGISTRY }}/${{ github.repository }}:||")
-          singularity push diffusion_pipelines.sif oras://${{ env.REGISTRY }}/${{ github.repository }}:${TAG_SUFFIX}_singularity
+          singularity push tractography.sif oras://${{ env.REGISTRY }}/${{ github.repository }}:${TAG_SUFFIX}_singularity

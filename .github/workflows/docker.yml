@@ -9,14 +9,14 @@ on:
       - "Dockerfile"
       - ".github/workflows/**"
       - "docker/**"
-      - "diffusion_pipelines/**"
+      - "tractography/**"
   pull_request:
     branches: ["master", "main", "maint/*"]
     paths:
       - "Dockerfile"
       - ".github/workflows/**"
       - "docker/**"
-      - "diffusion_pipelines/**"
+      - "tractography/**"
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
