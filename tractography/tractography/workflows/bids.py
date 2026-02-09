@@ -117,39 +117,30 @@ def collect_data(config, bids_validate=False, bids_filters=None):
         for dtype, query in queries.items()
     }
     # Filter out unwanted files
-    # DWI: only raw files (no derivatives)
+    # DWI: specified derivatives via bids_filters, and the source bval
+    # ideally the dwi should be the preprocessed one, which can be filtered
+    # via with the proper desc in the bids_filters
+    # the bvec file should be the one with rotated gradients, in case the dwi
+    # was transformed. This could also be filtered via the proper desc in the
+    # bids_filters
     # T1w, brain_mask, ribbon mask, fsnative2t1w_xfm: only derivatives
     for dtype, files in subj_data.items():
         selected = []
         for f in files:
-            if dtype in ["dwi", "bval", "bvec"]:
-                if "derivative" not in f:
-                    selected.append(f)
+            if dtype == "bval" and "derivative" not in f:
+                selected.append(f)
+            elif "derivative" in f:
+                selected.append(f)
             else:
-                if "derivative" in f:
-                    selected.append(f)
+                continue
         if len(selected) == 1:
             subj_data[dtype] = selected[0]
         else:
             raise RuntimeError(
-                f"Found multiple {dtype} files for participant "
+                f"Found none or multiple {dtype} files for participant "
                 f"{config.participant_label}: {selected}"
             )
 
-        if (
-            dtype not in ["dwi", "bval", "bvec"]
-            and len(subj_data[dtype]) == 0
-            and not config.recon
-            and config.preproc
-        ):
-            raise FileNotFoundError(
-                f"No {dtype} files found for participant "
-                f"{config.participant_label}. If you are running diffusion "
-                "preprocessing without reconstruction, please ensure that the "
-                "necessary files are available. Otherwise, use the --recon "
-                "flag to enable reconstruction and generate the required "
-                "files."
-            )
     return subj_data, layout
 
 
