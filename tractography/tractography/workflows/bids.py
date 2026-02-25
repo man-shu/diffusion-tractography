@@ -18,6 +18,13 @@ DEFAULT_BIDS_QUERIES = {
         "datatype": "dwi",
         "extension": [".bval"],
     },
+    "preprocessed_t1_mask": {
+        "datatype": "anat",
+        "suffix": "mask",
+        "desc": "brain",
+        "space": None,
+        "extension": [".nii", ".nii.gz"],
+    },
     "rotated_bvec": {
         "datatype": "dwi",
         "extension": [".bvec"],
@@ -181,6 +188,11 @@ def init_bidsdata_wf(config, name="bidsdata_wf"):
                 [("preprocessed_dwi", "preprocessed_dwi")],
             ),
             (bids_datasource, output, [("bval", "bval")]),
+            (
+                bids_datasource,
+                output,
+                [("preprocessed_t1_mask", "preprocessed_t1_mask")],
+            ),
             (bids_datasource, output, [("rotated_bvec", "rotated_bvec")]),
             (
                 bids_datasource,
