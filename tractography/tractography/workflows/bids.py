@@ -10,7 +10,7 @@ import json
 import copy
 
 DEFAULT_BIDS_QUERIES = {
-    "dwi": {
+    "preprocessed_dwi": {
         "datatype": "dwi",
         "extension": [".nii", ".nii.gz"],
     },
@@ -18,45 +18,33 @@ DEFAULT_BIDS_QUERIES = {
         "datatype": "dwi",
         "extension": [".bval"],
     },
-    "bvec": {
-        "datatype": "dwi",
-        "extension": [".bvec"],
-    },
-    "t1w": {
-        "datatype": "anat",
-        "suffix": "T1w",
-        "desc": "preproc",
-        "space": None,
-        "extension": [".nii", ".nii.gz"],
-    },
-    "brain_mask": {
+    "preprocessed_t1_mask": {
         "datatype": "anat",
         "suffix": "mask",
         "desc": "brain",
         "space": None,
         "extension": [".nii", ".nii.gz"],
     },
-    "ribbon_mask": {
+    "rotated_bvec": {
+        "datatype": "dwi",
+        "extension": [".bvec"],
+    },
+    "preprocessed_t1": {
         "datatype": "anat",
-        "suffix": "mask",
-        "desc": "ribbon",
+        "suffix": "T1w",
+        "desc": "preproc",
         "space": None,
         "extension": [".nii", ".nii.gz"],
     },
-    "fsnative2t1w_xfm": {
+    "space2t1w_xfm": {
         "datatype": "anat",
         "suffix": "xfm",
         "to": "T1w",
-        "extension": [".txt"],
+        "extension": [".h5"],
     },
-    "plot_recon_surface_on_t1": {
-        "extension": [".svg"],
-        "suffix": "T1w",
-        "desc": "reconall",
-    },
-    "plot_recon_segmentations_on_t1": {
-        "extension": [".svg"],
-        "suffix": "dseg",
+    "surfaces_t1": {
+        "datatype": "anat",
+        "extension": [".surf.gii"],
     },
 }
 
@@ -117,39 +105,32 @@ def collect_data(config, bids_validate=False, bids_filters=None):
         for dtype, query in queries.items()
     }
     # Filter out unwanted files
-    # DWI: only raw files (no derivatives)
+    # DWI: specified derivatives via bids_filters, and the source bval
+    # ideally the dwi should be the preprocessed one, which can be filtered
+    # via with the proper desc in the bids_filters
+    # the bvec file should be the one with rotated gradients, in case the dwi
+    # was transformed. This could also be filtered via the proper desc in the
+    # bids_filters
     # T1w, brain_mask, ribbon mask, fsnative2t1w_xfm: only derivatives
     for dtype, files in subj_data.items():
         selected = []
         for f in files:
-            if dtype in ["dwi", "bval", "bvec"]:
-                if "derivative" not in f:
-                    selected.append(f)
+            if dtype == "bval" and "derivative" not in f:
+                selected.append(f)
+            elif "derivative" in f:
+                selected.append(f)
             else:
-                if "derivative" in f:
-                    selected.append(f)
+                continue
         if len(selected) == 1:
             subj_data[dtype] = selected[0]
+        elif dtype == "surfaces_t1" and len(selected) == 2:
+            subj_data[dtype] = selected
         else:
             raise RuntimeError(
-                f"Found multiple {dtype} files for participant "
+                f"Found none or multiple {dtype} files for participant "
                 f"{config.participant_label}: {selected}"
             )
 
-        if (
-            dtype not in ["dwi", "bval", "bvec"]
-            and len(subj_data[dtype]) == 0
-            and not config.recon
-            and config.preproc
-        ):
-            raise FileNotFoundError(
-                f"No {dtype} files found for participant "
-                f"{config.participant_label}. If you are running diffusion "
-                "preprocessing without reconstruction, please ensure that the "
-                "necessary files are available. Otherwise, use the --recon "
-                "flag to enable reconstruction and generate the required "
-                "files."
-            )
     return subj_data, layout
 
 
@@ -189,14 +170,10 @@ def init_bidsdata_wf(config, name="bidsdata_wf"):
         IdentityInterface(
             fields=[
                 "preprocessed_t1",
-                "preprocessed_t1_mask",
-                "fsnative2t1w_xfm",
-                "dwi",
+                "MNI2t1w_xfm",
+                "preprocessed_dwi",
                 "bval",
-                "bvec",
-                "plot_recon_surface_on_t1",
-                "plot_recon_segmentations_on_t1",
-                "ribbon_mask",
+                "rotated_bvec",
             ]
         ),
         name="output",
@@ -205,36 +182,32 @@ def init_bidsdata_wf(config, name="bidsdata_wf"):
     bidsdata_wf = Workflow(name=name)
     bidsdata_wf.connect(
         [
-            (bids_datasource, decode_entities, [("dwi", "file_name")]),
-            (bids_datasource, output, [("dwi", "dwi")]),
+            (
+                bids_datasource,
+                decode_entities,
+                [("preprocessed_dwi", "file_name")],
+            ),
+            (
+                bids_datasource,
+                output,
+                [("preprocessed_dwi", "preprocessed_dwi")],
+            ),
             (bids_datasource, output, [("bval", "bval")]),
-            (bids_datasource, output, [("bvec", "bvec")]),
             (
                 bids_datasource,
                 output,
-                [("plot_recon_surface_on_t1", "plot_recon_surface_on_t1")],
+                [("preprocessed_t1_mask", "preprocessed_t1_mask")],
+            ),
+            (bids_datasource, output, [("rotated_bvec", "rotated_bvec")]),
+            (
+                bids_datasource,
+                output,
+                [("preprocessed_t1", "preprocessed_t1")],
             ),
             (
                 bids_datasource,
                 output,
-                [
-                    (
-                        "plot_recon_segmentations_on_t1",
-                        "plot_recon_segmentations_on_t1",
-                    )
-                ],
-            ),
-            (bids_datasource, output, [("t1w", "preprocessed_t1")]),
-            (
-                bids_datasource,
-                output,
-                [("brain_mask", "preprocessed_t1_mask")],
-            ),
-            (bids_datasource, output, [("ribbon_mask", "ribbon_mask")]),
-            (
-                bids_datasource,
-                output,
-                [("fsnative2t1w_xfm", "fsnative2t1w_xfm")],
+                [("MNI2t1w_xfm", "MNI2t1w_xfm")],
             ),
         ]
     )

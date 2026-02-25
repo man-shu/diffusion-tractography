@@ -8,3 +8,4 @@ config-fullres.cfg
 */*.pdf
 .deprecated
 *__init__*
+.vscode/*

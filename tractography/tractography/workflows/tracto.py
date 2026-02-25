@@ -1,15 +1,64 @@
 from configparser import ConfigParser
 from nipype import DataGrabber, Node, Workflow, MapNode, Merge
 from niflow.nipype1.workflows.dmri.fsl.dti import bedpostx_parallel
-from diffusion_pipelines.workflows import init_preprocess_wf, init_recon_wf
 from pathlib import Path
 from nipype.interfaces.fsl import ProbTrackX2, BEDPOSTX5
 import nipype.interfaces.ants as ants
+from .bids import init_bidsdata_wf
+from .sink import init_sink_wf
 
 
-def init_tracto_wf(
-    config_file,
-    name="tracto",
+def init_tracto_wf(output_dir=".", config=None):
+    wf = _tracto_wf(output_dir=output_dir, config=config)
+    wf = _set_inputs_outputs(config, wf)
+    return wf
+
+
+def _set_inputs_outputs(config, tracto_wf):
+    # bids dataset
+    bidsdata_wf = init_bidsdata_wf(config=config)
+    # outputs
+    sink_wf = init_sink_wf(config=config)
+    # create the full workflow
+    tracto_wf.connect(
+        [
+            (
+                bidsdata_wf,
+                tracto_wf.get_node("input_subject"),
+                [
+                    ("output.preprocessed_t1", "preprocessed_t1"),
+                    (
+                        "output.preprocessed_t1_mask",
+                        "preprocessed_t1_mask",
+                    ),
+                    (
+                        "output.MNI2t1w_xfm",
+                        "MNI2t1w_xfm",
+                    ),
+                    ("output.preprocessed_dwi", "dwi"),
+                    ("output.bval", "bval"),
+                    ("output.rotated_bvec", "bvec"),
+                    ("decode_entities.bids_entities", "bids_entities"),
+                ],
+            ),
+            (
+                bidsdata_wf,
+                sink_wf,
+                [
+                    (
+                        "decode_entities.bids_entities",
+                        "sinkinputnode.bids_entities",
+                    )
+                ],
+            ),
+        ]
+    )
+    return tracto_wf
+
+
+def _tracto_wf(
+    config,
+    name="diffusion_tractography",
     n_fibres=3,
     fudge=1,
     burn_in=1000,
@@ -18,59 +67,74 @@ def init_tracto_wf(
     output_dir=".",
 ):
 
-    config = ConfigParser()
-    config.read(config_file)
+    def shrink_surface_fun(surface, image, distance):
+        from os.path import join, basename
+        from os import getcwd
+        import subprocess
+
+        output_file = str(join(getcwd(), basename(surface)))
+        output_file = output_file.replace(".surf.gii", "_shrunk.surf.gii")
+
+        subprocess.check_call(
+            f"shrink_surface -surface {surface} -reference {image} "
+            f"-mm {distance} -out {output_file}",
+            shell=True,
+        )
+
+        if "lh" in output_file:
+            structure_name = "CORTEX_LEFT"
+        elif "rh" in output_file:
+            structure_name = "CORTEX_RIGHT"
+
+        if "inflated" in output_file:
+            surface_type = "INFLATED"
+        elif "sphere" in output_file:
+            surface_type = "SPHERICAL"
+        else:
+            surface_type = "ANATOMICAL"
+
+        if "pial" in output_file:
+            secondary_type = "PIAL"
+        if "white" in output_file:
+            secondary_type = "GRAY_WHITE"
+
+        subprocess.check_call(
+            f"wb_command -set-structure {output_file} {structure_name} "
+            f"-surface-type {surface_type} -surface-secondary-type "
+            f"{secondary_type}",
+            shell=True,
+        )
+
+        return output_file
+
+    shrink_surface_node = MapNode(
+        interface=Function(
+            input_names=["surface", "image", "distance"],
+            output_names=["out_file"],
+            function=shrink_surface_fun,
+        ),
+        name="surface_shrink_surface",
+        iterfield=["surface"],
+    )
+    shrink_surface_node.inputs.distance = 3
 
     roi_source = Node(DataGrabber(infields=[]), name="rois")
     roi_source.inputs.sort_filelist = True
-    roi_source.inputs.base_directory = config["ROIS"]["directory"]
+    roi_source.inputs.base_directory = config.roi_dir
     roi_source.inputs.template = "*.nii.gz"
 
-    # setup preprocess workflow
-    preprocess = init_preprocess_wf(output_dir=output_dir)
-    preprocess.inputs.input_subject.dwi = Path(
-        config["SUBJECT"]["directory"], config["SUBJECT"]["dwi"]
-    )
-    preprocess.inputs.input_subject.bval = Path(
-        config["SUBJECT"]["directory"], config["SUBJECT"]["bval"]
-    )
-    preprocess.inputs.input_subject.bvec = Path(
-        config["SUBJECT"]["directory"], config["SUBJECT"]["bvec"]
-    )
-    preprocess.inputs.input_template.T1 = Path(
-        config["TEMPLATE"]["directory"], config["TEMPLATE"]["T1"]
-    )
-    preprocess.inputs.input_template.T2 = Path(
-        config["TEMPLATE"]["directory"], config["TEMPLATE"]["T2"]
-    )
-    preprocess.inputs.input_template.mask = Path(
-        config["TEMPLATE"]["directory"], config["TEMPLATE"]["mask"]
-    )
-
-    # setup recon workflow
-    recon = init_recon_wf(output_dir=output_dir)
-    recon.inputs.input_subject.subject_id = config["SUBJECT"]["id"]
-    recon.inputs.input_subject.subjects_dir = config["SUBJECT"]["directory"]
-    recon.inputs.input_subject.T1 = Path(
-        config["SUBJECT"]["directory"], config["SUBJECT"]["T1"]
-    )
-    recon.inputs.input_subject.dwi = Path(
-        config["SUBJECT"]["directory"], config["SUBJECT"]["dwi"]
-    )
-    recon.inputs.input_subject.bval = Path(
-        config["SUBJECT"]["directory"], config["SUBJECT"]["bval"]
-    )
-    recon.inputs.input_subject.bvec = Path(
-        config["SUBJECT"]["directory"], config["SUBJECT"]["bvec"]
-    )
-    recon.inputs.input_template.T1 = Path(
-        config["TEMPLATE"]["directory"], config["TEMPLATE"]["T1"]
-    )
-    recon.inputs.input_template.T2 = Path(
-        config["TEMPLATE"]["directory"], config["TEMPLATE"]["T2"]
-    )
-    recon.inputs.input_template.mask = Path(
-        config["TEMPLATE"]["directory"], config["TEMPLATE"]["mask"]
+    input_subject = Node(
+        IdentityInterface(
+            fields=[
+                "preprocessed_dwi",
+                "bval",
+                "rotated_bvec",
+                "preprocessed_t1",
+                "preprocessed_t1_mask",
+                "bids_entities",
+            ],
+        ),
+        name="input_subject",
     )
 
     # node for applying registration from recon to ROIs
@@ -115,18 +179,28 @@ def init_tracto_wf(
         [
             (roi_source, apply_registration, [("outfiles", "input_image")]),
             (
-                recon,
+                input_subject,
                 apply_registration,
                 [
-                    ("output.reg_nl_forward_transforms", "transforms"),
-                    (
-                        "output.reg_nl_forward_invert_flags",
-                        "invert_transform_flags",
-                    ),
-                    ("output.mri_convert_reference_image", "reference_image"),
+                    ("output.MNI2t1w_xfm", "transforms"),
+                    ("output.preprocessed_t1", "reference_image"),
                 ],
             ),
-            (recon, join_seeds, [("output.shrunk_surface", "in1")]),
+            (
+                input_subject,
+                shrink_surface_node,
+                [("output.surfaces_t1", "surface")],
+            ),
+            (
+                input_subject,
+                shrink_surface_node,
+                [("output.preprocessed_t1", "image")],
+            ),
+            (
+                shrink_surface_node,
+                join_seeds,
+                [("output.shrunk_surface", "in1")],
+            ),
             (apply_registration, join_seeds, [("output_image", "in2")]),
             (
                 join_seeds,
@@ -136,20 +210,20 @@ def init_tracto_wf(
                 ],
             ),
             (
-                preprocess,
+                input_subject,
                 bedpost_gpu,
                 [
                     ("output.bval", "bvals"),
-                    ("output.bvec_rotated", "bvecs"),
-                    ("output.dwi_rigid_registered", "dwi"),
-                    ("output.mask", "mask"),
+                    ("output.rotated_bvec", "bvecs"),
+                    ("output.preprocessed_dwi", "dwi"),
+                    ("output.preprocessed_t1_mask", "mask"),
                 ],
             ),
             (
-                preprocess,
+                input_subject,
                 pbx2,
                 [
-                    ("output.mask", "mask"),
+                    ("output.preprocessed_t1_mask", "mask"),
                 ],
             ),
             (
