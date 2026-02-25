@@ -29,7 +29,7 @@ DEFAULT_BIDS_QUERIES = {
         "datatype": "dwi",
         "extension": [".bvec"],
     },
-    "preprocessed_t1w": {
+    "preprocessed_t1": {
         "datatype": "anat",
         "suffix": "T1w",
         "desc": "preproc",
