@@ -36,12 +36,15 @@ DEFAULT_BIDS_QUERIES = {
         "space": None,
         "extension": [".nii", ".nii.gz"],
     },
-    "MNI2t1w_xfm": {
+    "space2t1w_xfm": {
         "datatype": "anat",
         "suffix": "xfm",
-        "from": "MNI152NLin6Asym",
         "to": "T1w",
         "extension": [".h5"],
+    },
+    "surfaces_t1": {
+        "datatype": "anat",
+        "extension": [".surf.gii"],
     },
 }
 
@@ -120,6 +123,8 @@ def collect_data(config, bids_validate=False, bids_filters=None):
                 continue
         if len(selected) == 1:
             subj_data[dtype] = selected[0]
+        elif dtype == "surfaces_t1" and len(selected) == 2:
+            subj_data[dtype] = selected
         else:
             raise RuntimeError(
                 f"Found none or multiple {dtype} files for participant "
