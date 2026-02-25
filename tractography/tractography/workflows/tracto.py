@@ -1,10 +1,11 @@
 from configparser import ConfigParser
 from nipype import DataGrabber, Node, Workflow, MapNode, Merge
 from niflow.nipype1.workflows.dmri.fsl.dti import bedpostx_parallel
-from diffusion_pipelines.workflows import init_preprocess_wf, init_recon_wf
 from pathlib import Path
 from nipype.interfaces.fsl import ProbTrackX2, BEDPOSTX5
 import nipype.interfaces.ants as ants
+from .bids import init_bidsdata_wf
+from .sink import init_sink_wf
 
 
 def init_tracto_wf(output_dir=".", config=None):
@@ -18,15 +19,6 @@ def _set_inputs_outputs(config, tracto_wf):
     bidsdata_wf = init_bidsdata_wf(config=config)
     # outputs
     sink_wf = init_sink_wf(config=config)
-    # get freesurfer directory
-    fsdir = Node(
-        BIDSFreeSurferDir(
-            derivatives=config.output_dir,
-            freesurfer_home=os.getenv("FREESURFER_HOME"),
-            spaces=config.output_spaces.get_fs_spaces(),
-        ),
-        name="fsdir_preproc",
-    )
     # create the full workflow
     tracto_wf.connect(
         [
@@ -50,11 +42,6 @@ def _set_inputs_outputs(config, tracto_wf):
                 ],
             ),
             (
-                fsdir,
-                tracto_wf.get_node("input_subject"),
-                [("subjects_dir", "fs_subjects_dir")],
-            ),
-            (
                 bidsdata_wf,
                 sink_wf,
                 [
@@ -64,41 +51,14 @@ def _set_inputs_outputs(config, tracto_wf):
                     )
                 ],
             ),
-            (
-                tracto_wf.get_node("output"),
-                sink_wf.get_node("sink"),
-                [
-                    (
-                        "dwi_rigid_registered",
-                        "diffusion_preprocess.@registered_dwi",
-                    ),
-                    ("eddy_corrected", "diffusion_preprocess.@eddy_corrected"),
-                    ("mask", "diffusion_preprocess.@mask"),
-                    (
-                        "registered_mean_bzero",
-                        "diffusion_preprocess.@registered_mean_bzero",
-                    ),
-                    ("bvec_rotated", "diffusion_preprocess.@bvec_rotated"),
-                ],
-            ),
-            (
-                tracto_wf.get_node("report"),
-                sink_wf.get_node("sink"),
-                [
-                    (
-                        "report_outputnode.out_file",
-                        "diffusion_preprocess.@report",
-                    )
-                ],
-            ),
         ]
     )
     return tracto_wf
 
 
 def _tracto_wf(
-    config_file,
-    name="tracto",
+    config,
+    name="diffusion_tractography",
     n_fibres=3,
     fudge=1,
     burn_in=1000,
@@ -160,7 +120,7 @@ def _tracto_wf(
 
     roi_source = Node(DataGrabber(infields=[]), name="rois")
     roi_source.inputs.sort_filelist = True
-    roi_source.inputs.base_directory = config["ROIS"]["directory"]
+    roi_source.inputs.base_directory = config.roi_dir
     roi_source.inputs.template = "*.nii.gz"
 
     input_subject = Node(
