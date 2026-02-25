@@ -10,7 +10,7 @@ import json
 import copy
 
 DEFAULT_BIDS_QUERIES = {
-    "dwi": {
+    "preprocessed_dwi": {
         "datatype": "dwi",
         "extension": [".nii", ".nii.gz"],
     },
@@ -18,45 +18,23 @@ DEFAULT_BIDS_QUERIES = {
         "datatype": "dwi",
         "extension": [".bval"],
     },
-    "bvec": {
+    "rotated_bvec": {
         "datatype": "dwi",
         "extension": [".bvec"],
     },
-    "t1w": {
+    "preprocessed_t1w": {
         "datatype": "anat",
         "suffix": "T1w",
         "desc": "preproc",
         "space": None,
         "extension": [".nii", ".nii.gz"],
     },
-    "brain_mask": {
-        "datatype": "anat",
-        "suffix": "mask",
-        "desc": "brain",
-        "space": None,
-        "extension": [".nii", ".nii.gz"],
-    },
-    "ribbon_mask": {
-        "datatype": "anat",
-        "suffix": "mask",
-        "desc": "ribbon",
-        "space": None,
-        "extension": [".nii", ".nii.gz"],
-    },
-    "fsnative2t1w_xfm": {
+    "MNI2t1w_xfm": {
         "datatype": "anat",
         "suffix": "xfm",
+        "from": "MNI152NLin6Asym",
         "to": "T1w",
-        "extension": [".txt"],
-    },
-    "plot_recon_surface_on_t1": {
-        "extension": [".svg"],
-        "suffix": "T1w",
-        "desc": "reconall",
-    },
-    "plot_recon_segmentations_on_t1": {
-        "extension": [".svg"],
-        "suffix": "dseg",
+        "extension": [".h5"],
     },
 }
 
@@ -180,14 +158,10 @@ def init_bidsdata_wf(config, name="bidsdata_wf"):
         IdentityInterface(
             fields=[
                 "preprocessed_t1",
-                "preprocessed_t1_mask",
-                "fsnative2t1w_xfm",
-                "dwi",
+                "MNI2t1w_xfm",
+                "preprocessed_dwi",
                 "bval",
-                "bvec",
-                "plot_recon_surface_on_t1",
-                "plot_recon_segmentations_on_t1",
-                "ribbon_mask",
+                "rotated_bvec",
             ]
         ),
         name="output",
@@ -196,36 +170,27 @@ def init_bidsdata_wf(config, name="bidsdata_wf"):
     bidsdata_wf = Workflow(name=name)
     bidsdata_wf.connect(
         [
-            (bids_datasource, decode_entities, [("dwi", "file_name")]),
-            (bids_datasource, output, [("dwi", "dwi")]),
+            (
+                bids_datasource,
+                decode_entities,
+                [("preprocessed_dwi", "file_name")],
+            ),
+            (
+                bids_datasource,
+                output,
+                [("preprocessed_dwi", "preprocessed_dwi")],
+            ),
             (bids_datasource, output, [("bval", "bval")]),
-            (bids_datasource, output, [("bvec", "bvec")]),
+            (bids_datasource, output, [("rotated_bvec", "rotated_bvec")]),
             (
                 bids_datasource,
                 output,
-                [("plot_recon_surface_on_t1", "plot_recon_surface_on_t1")],
+                [("preprocessed_t1", "preprocessed_t1")],
             ),
             (
                 bids_datasource,
                 output,
-                [
-                    (
-                        "plot_recon_segmentations_on_t1",
-                        "plot_recon_segmentations_on_t1",
-                    )
-                ],
-            ),
-            (bids_datasource, output, [("t1w", "preprocessed_t1")]),
-            (
-                bids_datasource,
-                output,
-                [("brain_mask", "preprocessed_t1_mask")],
-            ),
-            (bids_datasource, output, [("ribbon_mask", "ribbon_mask")]),
-            (
-                bids_datasource,
-                output,
-                [("fsnative2t1w_xfm", "fsnative2t1w_xfm")],
+                [("MNI2t1w_xfm", "MNI2t1w_xfm")],
             ),
         ]
     )
