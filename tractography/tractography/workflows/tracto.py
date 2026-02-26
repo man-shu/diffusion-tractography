@@ -201,7 +201,7 @@ def _tracto_wf(
             (
                 shrink_surface_node,
                 join_seeds,
-                [("shrunk_surface", "in1")],
+                [("out_file", "in1")],
             ),
             (apply_registration, join_seeds, [("output_image", "in2")]),
             (
