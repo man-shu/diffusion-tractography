@@ -37,7 +37,7 @@ def _run_pipeline(config):
         ),
         format="svg",
     )
-    wf.run()
+    wf.run(plugin="MultiProc")
 
 
 def main():
