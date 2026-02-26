@@ -145,6 +145,11 @@ def init_bidsdata_wf(config, name="bidsdata_wf"):
     subject_data, layout = collect_data(
         config=config, bids_filters=bids_filters
     )
+    print(
+        f"Collected the following data for participant {config.participant_label}:"
+    )
+    for key, value in subject_data.items():
+        print(f"  {key}: {value}")
     bids_datasource = Node(
         IdentityInterface(fields=list(subject_data.keys())),
         name="bids_datasource",
