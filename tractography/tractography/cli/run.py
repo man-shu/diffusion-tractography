@@ -32,7 +32,7 @@ def _run_pipeline(config):
         graph2use="flat",
         dotfilename=os.path.join(
             config.work_dir,
-            f"{pipeline}_output_{config.run_uuid}",
+            f"tractography_output_{config.run_uuid}",
             "graph.dot",
         ),
         format="svg",
@@ -42,7 +42,7 @@ def _run_pipeline(config):
 
 def main():
     """
-    Main function to run the diffusion preprocessing pipeline.
+    Main function to run the diffusion tractography pipeline.
     """
     config = get_parser().parse_args()
     _run_pipeline(config)
