@@ -32,8 +32,8 @@ def _set_inputs_outputs(config, tracto_wf):
                         "preprocessed_t1_mask",
                     ),
                     (
-                        "output.MNI2t1w_xfm",
-                        "MNI2t1w_xfm",
+                        "output.space2t1w_xfm",
+                        "space2t1w_xfm",
                     ),
                     ("output.preprocessed_dwi", "dwi"),
                     ("output.bval", "bval"),
@@ -182,7 +182,7 @@ def _tracto_wf(
                 input_subject,
                 apply_registration,
                 [
-                    ("output.MNI2t1w_xfm", "transforms"),
+                    ("output.space2t1w_xfm", "transforms"),
                     ("output.preprocessed_t1", "reference_image"),
                 ],
             ),
