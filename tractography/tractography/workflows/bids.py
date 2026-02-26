@@ -209,7 +209,7 @@ def init_bidsdata_wf(config, name="bidsdata_wf"):
             (
                 bids_datasource,
                 output,
-                [("MNI2t1w_xfm", "MNI2t1w_xfm")],
+                [("space2t1w_xfm", "space2t1w_xfm")],
             ),
         ]
     )
