@@ -211,6 +211,11 @@ def init_bidsdata_wf(config, name="bidsdata_wf"):
                 output,
                 [("space2t1w_xfm", "space2t1w_xfm")],
             ),
+            (
+                bids_datasource,
+                output,
+                [("surfaces_t1", "surfaces_t1")],
+            ),
         ]
     )
 
