@@ -1,6 +1,6 @@
 import os
 import time
-from diffusion_pipelines.workflows import init_tracto_wf
+from tractography.workflows import init_tracto_wf
 
 from nipype import config as nipype_config
 
