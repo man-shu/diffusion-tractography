@@ -38,6 +38,7 @@ def _set_inputs_outputs(config, tracto_wf):
                     ("output.preprocessed_dwi", "dwi"),
                     ("output.bval", "bval"),
                     ("output.rotated_bvec", "bvec"),
+                    ("output.surfaces_t1", "surfaces_t1"),
                     ("decode_entities.bids_entities", "bids_entities"),
                 ],
             ),
