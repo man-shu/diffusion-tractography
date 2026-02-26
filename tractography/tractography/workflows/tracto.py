@@ -132,6 +132,8 @@ def _tracto_wf(
                 "preprocessed_t1",
                 "preprocessed_t1_mask",
                 "bids_entities",
+                "space2t1w_xfm",
+                "surfaces_t1",
             ],
         ),
         name="input_subject",
