@@ -24,7 +24,7 @@ def _run_pipeline(config):
     # create the pipeline
     wf = init_tracto_wf(
         output_dir=os.path.join(
-            config.work_dir, f"{pipeline}_output_{config.run_uuid}"
+            config.work_dir, f"tractography_output_{config.run_uuid}"
         ),
         config=config,
     )
