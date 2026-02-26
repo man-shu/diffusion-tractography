@@ -124,9 +124,6 @@ ENV PATH="$INSTALL_DIR/Convert3D/c3d-1.0.0-Linux-x86_64/bin:$PATH"
 # Install workbench
 RUN conda install --yes conda-forge::connectome-workbench-cli=2.0
 
-# Install sdcflows
-RUN pip install sdcflows
-
 # Configure PPAs for libpng12 and libxp6
 RUN GNUPGHOME=/tmp gpg --keyserver hkps://keyserver.ubuntu.com --no-default-keyring --keyring /usr/share/keyrings/linuxuprising.gpg --recv 0xEA8CACC073C3DB2A \
     && GNUPGHOME=/tmp gpg --keyserver hkps://keyserver.ubuntu.com --no-default-keyring --keyring /usr/share/keyrings/zeehio.gpg --recv 0xA1301338A3A48C4A \
