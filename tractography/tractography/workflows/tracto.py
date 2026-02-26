@@ -1,7 +1,7 @@
 from configparser import ConfigParser
 from nipype import DataGrabber, Node, Workflow, MapNode, Merge
-from niflow.nipype1.workflows.dmri.fsl.dti import bedpostx_parallel
-from pathlib import Path
+from nipype.interfaces.utility import IdentityInterface
+from nipype.interfaces.utility.wrappers import Function
 from nipype.interfaces.fsl import ProbTrackX2, BEDPOSTX5
 import nipype.interfaces.ants as ants
 from .bids import init_bidsdata_wf
