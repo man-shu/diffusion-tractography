@@ -82,9 +82,9 @@ def _tracto_wf(
             shell=True,
         )
 
-        if "lh" in output_file:
+        if "L" in output_file:
             structure_name = "CORTEX_LEFT"
-        elif "rh" in output_file:
+        elif "R" in output_file:
             structure_name = "CORTEX_RIGHT"
 
         if "inflated" in output_file:
