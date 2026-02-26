@@ -184,24 +184,24 @@ def _tracto_wf(
                 input_subject,
                 apply_registration,
                 [
-                    ("output.space2t1w_xfm", "transforms"),
-                    ("output.preprocessed_t1", "reference_image"),
+                    ("space2t1w_xfm", "transforms"),
+                    ("preprocessed_t1", "reference_image"),
                 ],
             ),
             (
                 input_subject,
                 shrink_surface_node,
-                [("output.surfaces_t1", "surface")],
+                [("surfaces_t1", "surface")],
             ),
             (
                 input_subject,
                 shrink_surface_node,
-                [("output.preprocessed_t1", "image")],
+                [("preprocessed_t1", "image")],
             ),
             (
                 shrink_surface_node,
                 join_seeds,
-                [("output.shrunk_surface", "in1")],
+                [("shrunk_surface", "in1")],
             ),
             (apply_registration, join_seeds, [("output_image", "in2")]),
             (
@@ -215,17 +215,17 @@ def _tracto_wf(
                 input_subject,
                 bedpost_gpu,
                 [
-                    ("output.bval", "bvals"),
-                    ("output.rotated_bvec", "bvecs"),
-                    ("output.preprocessed_dwi", "dwi"),
-                    ("output.preprocessed_t1_mask", "mask"),
+                    ("bval", "bvals"),
+                    ("rotated_bvec", "bvecs"),
+                    ("preprocessed_dwi", "dwi"),
+                    ("preprocessed_t1_mask", "mask"),
                 ],
             ),
             (
                 input_subject,
                 pbx2,
                 [
-                    ("output.preprocessed_t1_mask", "mask"),
+                    ("preprocessed_t1_mask", "mask"),
                 ],
             ),
             (
