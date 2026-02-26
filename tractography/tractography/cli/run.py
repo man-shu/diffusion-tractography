@@ -7,7 +7,7 @@ from nipype import config as nipype_config
 from tractography.cli.arg_parser import get_parser
 
 
-def _run_pipeline(config, to_run):
+def _run_pipeline(config):
     """
     Run the pipeline based on the config file.
     """
