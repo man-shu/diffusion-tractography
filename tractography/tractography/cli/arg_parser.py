@@ -81,7 +81,6 @@ def get_parser():
 
     g_other = parser.add_argument_group("Other options")
     g_other.add_argument(
-        "-w",
         "--roi-dir",
         action="store",
         type=Path,
