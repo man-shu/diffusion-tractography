@@ -37,7 +37,7 @@ def _run_pipeline(config):
         ),
         format="svg",
     )
-    wf.run(plugin="MultiProc")
+    wf.run(plugin="MultiProc", plugin_args={"n_gpu_procs": 2})
 
 
 def main():
