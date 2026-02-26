@@ -170,10 +170,12 @@ def init_bidsdata_wf(config, name="bidsdata_wf"):
         IdentityInterface(
             fields=[
                 "preprocessed_t1",
-                "MNI2t1w_xfm",
+                "space2t1w_xfm",
                 "preprocessed_dwi",
                 "bval",
                 "rotated_bvec",
+                "preprocessed_t1_mask",
+                "surfaces_t1",
             ]
         ),
         name="output",
