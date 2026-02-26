@@ -4,7 +4,7 @@ from tractography.workflows import init_tracto_wf
 
 from nipype import config as nipype_config
 
-from diffusion_pipelines.cli.arg_parser import get_parser
+from tractography.cli.arg_parser import get_parser
 
 
 def _run_pipeline(config, to_run):

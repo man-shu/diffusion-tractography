@@ -8,7 +8,7 @@ import nibabel
 import nimesh
 import numpy
 
-from diffusion_pipelines.utils import spatial
+from tractography.utils import spatial
 
 
 def shrink_surface(surface_file, reference, distance, outfile):

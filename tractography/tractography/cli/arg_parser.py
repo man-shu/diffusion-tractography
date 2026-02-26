@@ -21,7 +21,7 @@ def get_parser():
         return value.removeprefix("sub-")
 
     parser = ArgumentParser(
-        description="diffusion_pipelines",
+        description="tractography",
         formatter_class=RawTextHelpFormatter,
     )
 
