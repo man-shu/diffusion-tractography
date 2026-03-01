@@ -5,6 +5,8 @@
 #SBATCH --error error_%A_%a.out
 #SBATCH --gres=gpu:1
 
+module load singularity
+
 singularity exec \
 --env-file /data/parietal/store3/work/haggarwa/diffusion/diffusion-tractography/singularity_env.txt \
 --bind /data/parietal/store3/work/haggarwa/diffusion/diffusion-tractography/data:/home/input \
