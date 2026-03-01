@@ -7,7 +7,9 @@
 
 module load singularity
 
-singularity exec \
+module load cuda
+
+singularity exec --nv \
 --env-file /data/parietal/store3/work/haggarwa/diffusion/diffusion-tractography/singularity_env.txt \
 --bind /data/parietal/store3/work/haggarwa/diffusion/diffusion-tractography/data:/home/input \
 /data/parietal/store3/work/haggarwa/diffusion/diffusion-tractography/diffusion-tractography_main_singularity.sif \
