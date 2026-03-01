@@ -89,6 +89,16 @@ ENV PATH="$INSTALL_DIR/Convert3D/c3d-1.0.0-Linux-x86_64/bin:$PATH"
 # Install workbench
 RUN conda install --yes conda-forge::connectome-workbench-cli=2.0
 
+# Install ANTS
+RUN cd $INSTALL_DIR/ANTS && \
+    wget https://github.com/ANTsX/ANTs/releases/download/v2.4.4/ants-2.4.4-ubuntu-22.04-X64-gcc.zip && \
+    unzip ants-2.4.4-ubuntu-22.04-X64-gcc.zip && \
+    rm ants-2.4.4-ubuntu-22.04-X64-gcc.zip
+
+# Set up environment variables for ANTs
+ENV ANTSPATH="$INSTALL_DIR/ANTS/ants-2.4.4/bin"
+ENV PATH="$ANTSPATH:$PATH"
+
 # Install tractography
 COPY tractography $INSTALL_DIR/tractography
 RUN cd $INSTALL_DIR/tractography && \
