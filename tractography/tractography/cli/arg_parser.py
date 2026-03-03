@@ -113,5 +113,11 @@ def get_parser():
         default=False,
         help="Run in debug mode.",
     )
+    g_other.add_argument(
+        "--gpu",
+        action="store_true",
+        default=False,
+        help="Use GPU acceleration.",
+    )
 
     return parser

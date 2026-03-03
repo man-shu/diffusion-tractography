@@ -157,13 +157,15 @@ def _tracto_wf(
     )
 
     # bedpost_gpu
-    bedpost_gpu = Node(interface=BEDPOSTX5(), name="bedpost_gpu")
+    bedpost_gpu = Node(
+        interface=BEDPOSTX5(), name="bedpost_gpu" if config.gpu else "bedpost"
+    )
     bedpost_gpu.inputs.n_fibres = n_fibres
     bedpost_gpu.inputs.fudge = fudge
     bedpost_gpu.inputs.burn_in = burn_in
     bedpost_gpu.inputs.n_jumps = n_jumps
     bedpost_gpu.inputs.sample_every = sample_every
-    bedpost_gpu.inputs.use_gpu = True
+    bedpost_gpu.inputs.use_gpu = config.gpu
 
     # setup probtrackx2 node
     pbx2 = Node(

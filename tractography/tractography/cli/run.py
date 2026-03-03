@@ -37,7 +37,12 @@ def _run_pipeline(config):
         ),
         format="svg",
     )
-    wf.run(plugin="MultiProc", plugin_args={"n_gpu_procs": 1})
+    if config.gpu:
+        print("Running with GPU acceleration.")
+        wf.run(plugin="MultiProc", plugin_args={"n_gpu_procs": 1})
+    else:
+        print("Running without GPU acceleration.")
+        wf.run()
 
 
 def main():
