@@ -8,11 +8,9 @@ from nipype.interfaces.mrtrix3 import (
     MRConvert,
     ResponseSD,
     EstimateFOD,
-    Generate5tt,
     MRTransform,
     Generate5tt2gmwmi,
     Tractography,
-    TransformFSLConvert,
 )
 from .bids import init_bidsdata_wf
 from .sink import init_sink_wf
@@ -36,7 +34,6 @@ def _set_inputs_outputs(config, tracto_wf):
                 bidsdata_wf,
                 tracto_wf.get_node("input_subject"),
                 [
-                    ("output.preprocessed_t1", "preprocessed_t1"),
                     (
                         "output.preprocessed_t1_mask",
                         "preprocessed_t1_mask",
@@ -48,7 +45,7 @@ def _set_inputs_outputs(config, tracto_wf):
                     ("output.preprocessed_dwi", "preprocessed_dwi"),
                     ("output.bval", "bval"),
                     ("output.rotated_bvec", "rotated_bvec"),
-                    ("output.surfaces_t1", "surfaces_t1"),
+                    ("output.t1_dseg", "t1_dseg"),
                     ("decode_entities.bids_entities", "bids_entities"),
                 ],
             ),
@@ -100,11 +97,10 @@ def _tracto_wf(
                 "preprocessed_dwi",
                 "bval",
                 "rotated_bvec",
-                "preprocessed_t1",
                 "preprocessed_t1_mask",
                 "bids_entities",
                 "space2t1w_xfm",
-                "surfaces_t1",
+                "t1_dseg",
             ],
         ),
         name="input_subject",
@@ -144,61 +140,22 @@ def _tracto_wf(
 
     # ===== Anatomical Processing =====
 
-    # Remove NaNs from T1
-    remove_nans = Node(
-        interface=fsl.ImageMaths(),
-        name="remove_nans",
-    )
-    remove_nans.inputs.op_string = "-nan"
-    remove_nans.inputs.out_file = "t1_nonan.nii.gz"
-
-    # Convert T1 to MIF format
-    t12mif = Node(
+    # Convert tissue segmentation (dseg from smriprep) to MIF format
+    # The dseg file from sMRIprep already contains the 5-tissue segmentation
+    dseg2mif = Node(
         interface=MRConvert(),
-        name="t12mif",
+        name="dseg2mif",
     )
-    t12mif.inputs.out_file = "t1.mif"
-
-    # Generate 5TT segmentation (5-tissue-type) from T1
-    # Uses FSL's tissue classification tools
-    generate_5tt = Node(
-        interface=Generate5tt(),
-        name="generate_5tt",
-    )
-    generate_5tt.inputs.algorithm = "fsl"
-    generate_5tt.inputs.out_file = "t1_5tt.mif"
+    dseg2mif.inputs.out_file = "t1_5tt.mif"
 
     # ===== Registration and Transformation =====
 
-    # Extract first volume (b=0) from DWI for registration
-    extract_b0 = Node(
-        interface=MRConvert(),
-        name="extract_b0",
-    )
-    extract_b0.inputs.coord = [
-        3,
-        0,
-    ]  # Extract volume at index 0 along dimension 3
-    extract_b0.inputs.out_file = "mean_b0.nii.gz"
+    # Note: We use the pre-computed transformation from DWI to T1 space
+    # provided by sMRIprep preprocessing (space2t1w_xfm)
 
-    # Register b0 to T1 using FLIRT
-    reg_b0_to_t1 = Node(
-        interface=fsl.FLIRT(),
-        name="reg_b0_to_t1",
-    )
-    reg_b0_to_t1.inputs.out_file = "b0_to_t1.nii.gz"
-    reg_b0_to_t1.inputs.out_matrix_file = "b0_to_t1.mat"
-
-    # Convert FSL transformation to MrTrix3 format
-    convert_xfm = Node(
-        interface=TransformFSLConvert(),
-        name="convert_xfm",
-    )
-    convert_xfm.inputs.flirt_import = True
-    convert_xfm.inputs.out_transform = "b0_to_t1.txt"
-
-    # Apply transformation to 5TT segmentation to align it to DWI space
-    # Use inverse transform to go from T1 space to DWI space
+    # Apply pre-computed transformation to 5TT segmentation to align it to DWI space
+    # The transformation is already computed by sMRIprep (space2t1w_xfm from DWI to T1)
+    # We need to apply the inverse to transform from T1 to DWI space
     transform_5tt = Node(
         interface=MRTransform(),
         name="transform_5tt",
@@ -275,26 +232,11 @@ def _tracto_wf(
                     ("csf_file", "csf_txt"),
                 ],
             ),
-            # T1 processing
-            (input_subject, remove_nans, [("preprocessed_t1", "in_file")]),
-            (remove_nans, t12mif, [("out_file", "in_file")]),
-            (t12mif, generate_5tt, [("out_file", "in_file")]),
-            # Extract b0 for registration
-            (dwi2mif, extract_b0, [("out_file", "in_file")]),
-            # Register b0 to T1
-            (extract_b0, reg_b0_to_t1, [("out_file", "in_file")]),
-            (remove_nans, reg_b0_to_t1, [("out_file", "reference")]),
-            # Convert transformation matrix to MrTrix format
-            (reg_b0_to_t1, convert_xfm, [("out_matrix_file", "in_transform")]),
-            (extract_b0, convert_xfm, [("out_file", "in_file")]),
-            (remove_nans, convert_xfm, [("out_file", "reference")]),
-            # Transform 5TT to DWI space
-            (generate_5tt, transform_5tt, [("out_file", "in_files")]),
-            (
-                convert_xfm,
-                transform_5tt,
-                [("out_transform", "linear_transform")],
-            ),
+            # Anatomical processing: Convert pre-computed tissue segmentation (dseg) to MIF
+            (input_subject, dseg2mif, [("t1_dseg", "in_file")]),
+            # Transform 5TT segmentation from T1 to DWI space using pre-computed transformation
+            (dseg2mif, transform_5tt, [("out_file", "in_files")]),
+            (input_subject, transform_5tt, [("space2t1w_xfm", "linear_transform")]),
             # Generate GM/WM boundary
             (transform_5tt, gmwm_boundary, [("out_file", "in_file")]),
             # Generate streamlines with anatomical constraints

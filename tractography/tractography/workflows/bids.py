@@ -42,6 +42,12 @@ DEFAULT_BIDS_QUERIES = {
         "to": "T1w",
         "extension": [".h5"],
     },
+    "t1_dseg": {
+        "datatype": "anat",
+        "suffix": "dseg",
+        "space": None,
+        "extension": [".nii", ".nii.gz"],
+    },
     "surfaces_t1": {
         "datatype": "anat",
         "extension": [".surf.gii"],
@@ -180,6 +186,7 @@ def init_bidsdata_wf(config, name="bidsdata_wf"):
                 "bval",
                 "rotated_bvec",
                 "preprocessed_t1_mask",
+                "t1_dseg",
                 "surfaces_t1",
             ]
         ),
@@ -215,6 +222,11 @@ def init_bidsdata_wf(config, name="bidsdata_wf"):
                 bids_datasource,
                 output,
                 [("space2t1w_xfm", "space2t1w_xfm")],
+            ),
+            (
+                bids_datasource,
+                output,
+                [("t1_dseg", "t1_dseg")],
             ),
             (
                 bids_datasource,
