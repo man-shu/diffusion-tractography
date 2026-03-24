@@ -14,6 +14,7 @@ from nipype.interfaces.mrtrix3 import (
 )
 from .bids import init_bidsdata_wf
 from .sink import init_sink_wf
+from .report import init_report_wf
 
 
 def init_tracto_wf(output_dir=".", config=None):
@@ -27,6 +28,12 @@ def _set_inputs_outputs(config, tracto_wf):
     bidsdata_wf = init_bidsdata_wf(config=config)
     # outputs
     sink_wf = init_sink_wf(config=config)
+    # report
+    report_wf = init_report_wf(
+        calling_wf_name="diffusion_tractography",
+        output_dir=config.output_dir,
+        name="report",
+    )
     # create the full workflow
     tracto_wf.connect(
         [
@@ -65,6 +72,16 @@ def _set_inputs_outputs(config, tracto_wf):
                     ("csf_fod", "sinkinputnode.csf_fod"),
                     ("gmwm_boundary", "sinkinputnode.gmwm_boundary"),
                     ("t1_5tt", "sinkinputnode.t1_5tt"),
+                ],
+            ),
+            # Connect tractography outputs to report
+            (
+                tracto_wf.get_node("output_subject"),
+                report_wf.get_node("report_inputnode"),
+                [
+                    ("streamlines", "streamlines"),
+                    ("wm_fod", "wm_fod"),
+                    ("gmwm_boundary", "gmwm_boundary"),
                 ],
             ),
         ]
