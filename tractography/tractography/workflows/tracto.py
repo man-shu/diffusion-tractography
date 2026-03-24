@@ -3,8 +3,17 @@ from nipype import DataGrabber, Node, Workflow, MapNode, Merge
 from nipype.interfaces.utility import IdentityInterface
 from nipype.interfaces.utility.wrappers import Function
 import nipype.interfaces.ants as ants
-import nipype.interfaces.mrtrix3 as mrt
 import nipype.interfaces.fsl as fsl
+from nipype.interfaces.mrtrix3 import (
+    MRConvert,
+    ResponseSD,
+    EstimateFOD,
+    Generate5tt,
+    MRTransform,
+    Generate5tt2gmwmi,
+    Tractography,
+    TransformFSLConvert,
+)
 from .bids import init_bidsdata_wf
 from .sink import init_sink_wf
 
@@ -106,16 +115,16 @@ def _tracto_wf(
     # Convert preprocessed DWI to MIF format
     # Uses bvec/bval files in FSL format
     dwi2mif = Node(
-        interface=mrt.MRConvert(),
+        interface=MRConvert(),
         name="dwi2mif",
     )
     dwi2mif.inputs.grad_fsl = True
-    dwi2mif.inputs.out_filename = "dwi.mif"
+    dwi2mif.inputs.out_file = "dwi.mif"
 
     # Derive response functions using Dhollander algorithm
     # This estimates WM, GM, and CSF response functions
     response_wm = Node(
-        interface=mrt.ResponseSD(),
+        interface=ResponseSD(),
         name="response_wm",
     )
     response_wm.inputs.algorithm = "dhollander"
@@ -125,7 +134,7 @@ def _tracto_wf(
 
     # Estimate fiber orientation distributions (FOD) using multi-shell multi-tissue CSD
     estimate_fod = Node(
-        interface=mrt.EstimateFOD(),
+        interface=EstimateFOD(),
         name="estimate_fod",
     )
     estimate_fod.inputs.algorithm = "msmt_csd"
@@ -145,15 +154,15 @@ def _tracto_wf(
 
     # Convert T1 to MIF format
     t12mif = Node(
-        interface=mrt.MRConvert(),
+        interface=MRConvert(),
         name="t12mif",
     )
-    t12mif.inputs.out_filename = "t1.mif"
+    t12mif.inputs.out_file = "t1.mif"
 
     # Generate 5TT segmentation (5-tissue-type) from T1
     # Uses FSL's tissue classification tools
     generate_5tt = Node(
-        interface=mrt.Generate5tt(),
+        interface=Generate5tt(),
         name="generate_5tt",
     )
     generate_5tt.inputs.algorithm = "fsl"
@@ -161,16 +170,18 @@ def _tracto_wf(
 
     # ===== Registration and Transformation =====
 
-    # Estimate transformation from b0 to T1 using FLIRT
-    # First, we need to extract a mean b0 from the DWI
+    # Extract first volume (b=0) from DWI for registration
     extract_b0 = Node(
-        interface=mrt.MRConvert(),
+        interface=MRConvert(),
         name="extract_b0",
     )
-    extract_b0.inputs.coord = [3, 0]  # Extract first volume (b=0)
-    extract_b0.inputs.out_filename = "mean_b0.nii.gz"
+    extract_b0.inputs.coord = [
+        3,
+        0,
+    ]  # Extract volume at index 0 along dimension 3
+    extract_b0.inputs.out_file = "mean_b0.nii.gz"
 
-    # Register DWI (b0) to T1
+    # Register b0 to T1 using FLIRT
     reg_b0_to_t1 = Node(
         interface=fsl.FLIRT(),
         name="reg_b0_to_t1",
@@ -178,46 +189,45 @@ def _tracto_wf(
     reg_b0_to_t1.inputs.out_file = "b0_to_t1.nii.gz"
     reg_b0_to_t1.inputs.out_matrix_file = "b0_to_t1.mat"
 
-    # Convert FSL transformation to MrTrix format
+    # Convert FSL transformation to MrTrix3 format
     convert_xfm = Node(
-        interface=mrt.TransformConvert(),
+        interface=TransformFSLConvert(),
         name="convert_xfm",
     )
-    convert_xfm.inputs.conversion_type = "flirt_import"
-    convert_xfm.inputs.out_file = "b0_to_t1.txt"
+    convert_xfm.inputs.flirt_import = True
+    convert_xfm.inputs.out_transform = "b0_to_t1.txt"
 
     # Apply transformation to 5TT segmentation to align it to DWI space
+    # Use inverse transform to go from T1 space to DWI space
     transform_5tt = Node(
-        interface=mrt.MRTransform(),
+        interface=MRTransform(),
         name="transform_5tt",
     )
     transform_5tt.inputs.linear_transform = True
-    transform_5tt.inputs.inverse_transform = True
-    transform_5tt.inputs.datatype = "float32"
-    transform_5tt.inputs.out_filename = "t1_5tt_aligned.mif"
+    transform_5tt.inputs.invert = True
+    transform_5tt.inputs.out_file = "t1_5tt_aligned.mif"
 
     # Generate GM/WM boundary for seeding
     gmwm_boundary = Node(
-        interface=mrt.MRMath(),
+        interface=Generate5tt2gmwmi(),
         name="gmwm_boundary",
     )
-    gmwm_boundary.inputs.operation = "5tt2gmwmi"
-    gmwm_boundary.inputs.out_filename = "gmwm_boundary.mif"
+    gmwm_boundary.inputs.mask_out = "gmwm_boundary.mif"
 
     # ===== Streamline Generation =====
 
     # Generate streamlines using ACT (Anatomically Constrained Tractography)
     tckgen = Node(
-        interface=mrt.Tractography(),
+        interface=Tractography(),
         name="tckgen",
     )
     tckgen.inputs.algorithm = "iFOD2"  # Improved Fiber ODFs
-    tckgen.inputs.select = nstreamlines
-    tckgen.inputs.max_length = max_len
-    tckgen.inputs.min_length = 10
-    tckgen.inputs.cutoff = cutoff
-    tckgen.inputs.use_rk4 = True
-    tckgen.inputs.backtrack = True
+    tckgen.inputs.select = nstreamlines  # Number of streamlines to generate
+    tckgen.inputs.max_length = max_len  # Maximum length in mm
+    tckgen.inputs.min_length = 10  # Minimum length in mm
+    tckgen.inputs.cutoff = cutoff  # FOD amplitude cutoff
+    tckgen.inputs.use_rk4 = True  # Use 4th order Runge-Kutta integration
+    tckgen.inputs.backtrack = True  # Allow backtracking
     tckgen.inputs.out_file = "streamlines.tck"
 
     # Build workflow
@@ -234,7 +244,8 @@ def _tracto_wf(
                     ("bval", "bval_file"),
                 ],
             ),
-            # Response function estimation
+            # Response function estimation from DWI
+            (dwi2mif, response_wm, [("out_file", "in_file")]),
             (
                 input_subject,
                 response_wm,
@@ -244,8 +255,7 @@ def _tracto_wf(
                     ("preprocessed_t1_mask", "mask_file"),
                 ],
             ),
-            (dwi2mif, response_wm, [("out_file", "in_file")]),
-            # FOD estimation
+            # FOD estimation using response functions
             (dwi2mif, estimate_fod, [("out_file", "in_file")]),
             (
                 input_subject,
@@ -260,9 +270,9 @@ def _tracto_wf(
                 response_wm,
                 estimate_fod,
                 [
-                    ("wm_file", "wm_response_file"),
-                    ("gm_file", "gm_response_file"),
-                    ("csf_file", "csf_response_file"),
+                    ("wm_file", "wm_txt"),
+                    ("gm_file", "gm_txt"),
+                    ("csf_file", "csf_txt"),
                 ],
             ),
             # T1 processing
@@ -274,27 +284,23 @@ def _tracto_wf(
             # Register b0 to T1
             (extract_b0, reg_b0_to_t1, [("out_file", "in_file")]),
             (remove_nans, reg_b0_to_t1, [("out_file", "reference")]),
-            # Convert transformation
-            (
-                reg_b0_to_t1,
-                convert_xfm,
-                [("out_matrix_file", "transform_file")],
-            ),
+            # Convert transformation matrix to MrTrix format
+            (reg_b0_to_t1, convert_xfm, [("out_matrix_file", "in_transform")]),
             (extract_b0, convert_xfm, [("out_file", "in_file")]),
-            (remove_nans, convert_xfm, [("out_file", "reference_file")]),
+            (remove_nans, convert_xfm, [("out_file", "reference")]),
             # Transform 5TT to DWI space
-            (generate_5tt, transform_5tt, [("out_file", "in_file")]),
+            (generate_5tt, transform_5tt, [("out_file", "in_files")]),
             (
                 convert_xfm,
                 transform_5tt,
-                [("out_file", "linear_transform_file")],
+                [("out_transform", "linear_transform")],
             ),
             # Generate GM/WM boundary
             (transform_5tt, gmwm_boundary, [("out_file", "in_file")]),
-            # Generate streamlines
-            (estimate_fod, tckgen, [("wm_odf", "seed_image")]),
+            # Generate streamlines with anatomical constraints
+            (estimate_fod, tckgen, [("wm_odf", "in_file")]),
             (transform_5tt, tckgen, [("out_file", "act_file")]),
-            (gmwm_boundary, tckgen, [("out_file", "seed_gmwmi")]),
+            (gmwm_boundary, tckgen, [("mask_out", "seed_gmwmi")]),
         ]
     )
 
