@@ -172,6 +172,7 @@ def _tracto_wf(
     )
     generate5tt.inputs.algorithm = "freesurfer"
     generate5tt.inputs.out_file = "t1_5tt.mif"
+    generate5tt.inputs.lut_file = "/opt/FreeSurferColorLUT.txt"
 
     # ===== GM/WM Boundary Generation =====
     gmwm_boundary = Node(

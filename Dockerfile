@@ -102,6 +102,9 @@ ENV PATH="$ANTSPATH:$PATH"
 # install MRtrix3
 RUN conda install --yes -c conda-forge -c MRtrix3 mrtrix3 libstdcxx-ng
 
+# copy FreeSurferColorLUT.txt to the installation directory
+COPY docker/files/FreeSurferColorLUT.txt $INSTALL_DIR/FreeSurferColorLUT.txt
+
 # Install tractography
 COPY tractography $INSTALL_DIR/tractography
 RUN cd $INSTALL_DIR/tractography && \
