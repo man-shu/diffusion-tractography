@@ -1,7 +1,3 @@
-from niworkflows.interfaces.reportlets.masks import SimpleShowMaskRPT
-from niworkflows.interfaces.reportlets.registration import (
-    SimpleBeforeAfterRPT as SimpleBeforeAfter,
-)
 from nipype.interfaces.utility.wrappers import Function
 from nipype import IdentityInterface, Node, Workflow, Merge
 import os
@@ -319,25 +315,7 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
     inputnode = Node(
         IdentityInterface(
             fields=[
-                "dwi_initial",
-                "dwi_masked",
-                "bval",
-                "eddy_corrected",
-                "mask",
-                "bet_mask",
-                "dwi_rigid_registered",
-                "t1_initial",
-                "t1_masked",
                 "bids_entities",
-                "plot_recon_surface_on_t1",
-                "plot_recon_segmentations_on_t1",
-                "initial_mean_bzero",
-                "eddy_mean_bzero",
-                "registered_mean_bzero",
-                "ribbon_mask",
-                "mppca_denoised",
-                "gibbs_unringed_denoised",
-                # Tractography outputs
                 "streamlines",
                 "wm_fod",
                 "gmwm_boundary",
@@ -349,80 +327,6 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
         IdentityInterface(fields=["out_file"]),
         name="report_outputnode",
     )
-    # MPPCA
-    plot_before_after_mppca = Node(
-        SimpleBeforeAfter(), name="plot_before_after_mppca"
-    )
-    plot_before_after_mppca.inputs.before_label = "Before MP-PCA (Initial DWI)"
-    plot_before_after_mppca.inputs.after_label = "After MP-PCA"
-
-    # Gibbs Unringing
-    plot_before_after_gibbs = Node(
-        SimpleBeforeAfter(), name="plot_before_after_gibbs"
-    )
-    plot_before_after_gibbs.inputs.before_label = (
-        "Before Gibbs Unringing (MP-PCA Denoised)"
-    )
-    plot_before_after_gibbs.inputs.after_label = "After Gibbs Unringing"
-
-    # this node plots the before and after images of the eddy correction
-    plot_before_after_eddy = Node(
-        SimpleBeforeAfter(), name="plot_before_after_eddy"
-    )
-    # set labels for the before and after images
-    plot_before_after_eddy.inputs.before_label = (
-        "Before Eddy Correction (Gibbs Unringed + MP-PCA Denoised)"
-    )
-    plot_before_after_eddy.inputs.after_label = "Eddy Corrected DWI"
-    # this node plots before and after images of masking T1 template
-    plot_before_after_mask_t1 = Node(
-        SimpleBeforeAfter(), name="plot_before_after_mask_t1"
-    )
-    # set labels for the before and after images
-    plot_before_after_mask_t1.inputs.before_label = "Subject T1"
-    plot_before_after_mask_t1.inputs.after_label = "Masked Subject T1"
-    # this node plots the masked subject T1 as before and the dwi registered
-    # to it as after
-    plot_before_after_t1_dwi = Node(
-        SimpleBeforeAfter(), name="plot_before_after_t1_dwi"
-    )
-    # set labels for the before and after images
-    plot_before_after_t1_dwi.inputs.before_label = "Masked Subject T1"
-    plot_before_after_t1_dwi.inputs.after_label = "Registered DWI"
-    # this node plots the extracted brain mask as outline on the initial dwi
-    # image
-    plot_bet = Node(SimpleShowMaskRPT(), name="plot_bet")
-    # this node plots the transformed mask as an outline on transformed dwi
-    # image
-    plot_transformed = Node(SimpleShowMaskRPT(), name="plot_transformed")
-
-    def ribbon_on_dwi(dwi_file, ribbon_mask):
-        import nibabel as nib
-        from niworkflows.viz.utils import (
-            compose_view,
-            cuts_from_bbox,
-            plot_registration,
-        )
-
-        dwi_img = nib.load(dwi_file)
-        ribbon_img = nib.load(ribbon_mask)
-        svg = plot_registration(
-            dwi_img,
-            "Ribbon mask on DWI",
-            estimate_brightness=True,
-            cuts=cuts_from_bbox(ribbon_img, cuts=7),
-            contour=ribbon_img,
-        )
-        out_file = compose_view(svg, [], out_file="ribbon_on_dwi.svg")
-
-        return out_file
-
-    RibbonOnDWI = Function(
-        input_names=["dwi_file", "ribbon_mask"],
-        output_names=["out_file"],
-        function=ribbon_on_dwi,
-    )
-    plot_ribbon_on_dwi = Node(RibbonOnDWI, name="plot_ribbon_on_dwi")
 
     # ===== Tractography Plotting Nodes =====
 
@@ -464,9 +368,8 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
     plot_gmwm = Node(PlotGMWM, name="plot_gmwm")
     plot_gmwm.inputs.title = "GM/WM Boundary (Seed Region)"
 
-    # Create a Merge node to combine the outputs of plot_bet,
-    # plot_before_after_eddy, and plot_transformed
-    merge_node = Node(Merge(14), name="merge_node")
+    # Create a Merge node to combine tractography plots
+    merge_node = Node(Merge(4), name="merge_node")
 
     # embed plots in a html template
     CreateHTML = Function(
@@ -489,76 +392,6 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
     workflow = Workflow(name=name, base_dir=output_dir)
     workflow.connect(
         [
-            # plot the extracted brain mask as outline on the initial dwi image
-            (
-                inputnode,
-                plot_bet,
-                [
-                    ("bet_mask", "mask_file"),
-                    ("dwi_initial", "background_file"),
-                ],
-            ),
-            (
-                inputnode,
-                plot_before_after_mppca,
-                [("initial_mean_bzero", "before")],
-            ),
-            (
-                inputnode,
-                plot_before_after_mppca,
-                [("mppca_denoised", "after")],
-            ),
-            (
-                inputnode,
-                plot_before_after_gibbs,
-                [("mppca_denoised", "before")],
-            ),
-            (
-                inputnode,
-                plot_before_after_gibbs,
-                [("gibbs_unringed_denoised", "after")],
-            ),
-            # plot the initial dwi as before
-            (
-                inputnode,
-                plot_before_after_eddy,
-                [("gibbs_unringed_denoised", "before")],
-            ),
-            # plot the eddy corrected dwi as after
-            (
-                inputnode,
-                plot_before_after_eddy,
-                [("eddy_mean_bzero", "after")],
-            ),
-            # plot the initial subject T1 as before
-            (inputnode, plot_before_after_mask_t1, [("t1_initial", "before")]),
-            # plot the masked subject T1 as after
-            (inputnode, plot_before_after_mask_t1, [("t1_masked", "after")]),
-            # plot the masked subject T1 as before and transformed dwi as
-            # after
-            (inputnode, plot_before_after_t1_dwi, [("t1_masked", "before")]),
-            (
-                inputnode,
-                plot_before_after_t1_dwi,
-                [("registered_mean_bzero", "after")],
-            ),
-            # plot the transformed mask as an outline on transformed dwi image
-            (
-                inputnode,
-                plot_transformed,
-                [
-                    ("dwi_rigid_registered", "background_file"),
-                    ("mask", "mask_file"),
-                ],
-            ),
-            (
-                inputnode,
-                plot_ribbon_on_dwi,
-                [
-                    ("registered_mean_bzero", "dwi_file"),
-                    ("ribbon_mask", "ribbon_mask"),
-                ],
-            ),
             # ===== Tractography Plotting Connections =====
             # Plot streamlines on T1
             (
@@ -566,7 +399,7 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
                 plot_streamlines_t1,
                 [
                     ("streamlines", "streamlines_file"),
-                    ("t1_masked", "background_file"),
+                    ("wm_fod", "background_file"),
                 ],
             ),
             # Plot streamlines on DWI
@@ -575,7 +408,7 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
                 plot_streamlines_dwi,
                 [
                     ("streamlines", "streamlines_file"),
-                    ("registered_mean_bzero", "background_file"),
+                    ("wm_fod", "background_file"),
                 ],
             ),
             # Plot WM FOD
@@ -584,7 +417,7 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
                 plot_fod,
                 [
                     ("wm_fod", "wm_fod_file"),
-                    ("t1_masked", "background_file"),
+                    ("wm_fod", "background_file"),
                 ],
             ),
             # Plot GM/WM boundary
@@ -593,34 +426,14 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
                 plot_gmwm,
                 [
                     ("gmwm_boundary", "gmwm_file"),
-                    ("t1_masked", "background_file"),
+                    ("wm_fod", "background_file"),
                 ],
             ),
-            # merge the outputs of plot_bet, plot_before_after_eddy,
-            # plot_before_after_mask_t1, plot_transformed
-            (plot_bet, merge_node, [("out_report", "in1")]),
-            (plot_before_after_eddy, merge_node, [("out_report", "in2")]),
-            (plot_before_after_mask_t1, merge_node, [("out_report", "in3")]),
-            (plot_before_after_t1_dwi, merge_node, [("out_report", "in4")]),
-            (plot_transformed, merge_node, [("out_report", "in5")]),
-            (
-                inputnode,
-                merge_node,
-                [("plot_recon_surface_on_t1", "in6")],
-            ),
-            (
-                inputnode,
-                merge_node,
-                [("plot_recon_segmentations_on_t1", "in7")],
-            ),
-            (plot_ribbon_on_dwi, merge_node, [("out_file", "in8")]),
-            (plot_before_after_mppca, merge_node, [("out_report", "in9")]),
-            (plot_before_after_gibbs, merge_node, [("out_report", "in10")]),
             # Add tractography plots to merge node
-            (plot_streamlines_t1, merge_node, [("out_file", "in11")]),
-            (plot_streamlines_dwi, merge_node, [("out_file", "in12")]),
-            (plot_fod, merge_node, [("out_file", "in13")]),
-            (plot_gmwm, merge_node, [("out_file", "in14")]),
+            (plot_streamlines_t1, merge_node, [("out_file", "in1")]),
+            (plot_streamlines_dwi, merge_node, [("out_file", "in2")]),
+            (plot_fod, merge_node, [("out_file", "in3")]),
+            (plot_gmwm, merge_node, [("out_file", "in4")]),
             # input the bids_entities
             (inputnode, create_html, [("bids_entities", "bids_entities")]),
             # create the html report
