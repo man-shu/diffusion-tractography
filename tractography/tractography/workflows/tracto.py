@@ -219,8 +219,8 @@ def _tracto_wf(
                 dwi2mif,
                 [
                     ("preprocessed_dwi", "in_file"),
-                    ("rotated_bvec", "bvec_file"),
-                    ("bval", "bval_file"),
+                    ("rotated_bvec", "in_bvec"),
+                    ("bval", "in_bval"),
                 ],
             ),
             # Response function estimation from DWI
@@ -229,9 +229,9 @@ def _tracto_wf(
                 input_subject,
                 response_wm,
                 [
-                    ("rotated_bvec", "bvec_file"),
-                    ("bval", "bval_file"),
-                    ("preprocessed_t1_mask", "mask_file"),
+                    ("rotated_bvec", "in_bvec"),
+                    ("bval", "in_bval"),
+                    ("preprocessed_t1_mask", "in_mask"),
                 ],
             ),
             # FOD estimation using response functions
@@ -240,8 +240,8 @@ def _tracto_wf(
                 input_subject,
                 estimate_fod,
                 [
-                    ("rotated_bvec", "bvec_file"),
-                    ("bval", "bval_file"),
+                    ("rotated_bvec", "in_bvec"),
+                    ("bval", "in_bval"),
                     ("preprocessed_t1_mask", "mask_file"),
                 ],
             ),
