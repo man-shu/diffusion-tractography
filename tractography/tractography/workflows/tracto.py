@@ -38,10 +38,6 @@ def _set_inputs_outputs(config, tracto_wf):
                         "output.preprocessed_t1_mask",
                         "preprocessed_t1_mask",
                     ),
-                    (
-                        "output.space2t1w_xfm",
-                        "space2t1w_xfm",
-                    ),
                     ("output.preprocessed_dwi", "preprocessed_dwi"),
                     ("output.bval", "bval"),
                     ("output.rotated_bvec", "rotated_bvec"),
@@ -99,7 +95,6 @@ def _tracto_wf(
                 "rotated_bvec",
                 "preprocessed_t1_mask",
                 "bids_entities",
-                "space2t1w_xfm",
                 "t1_dseg",
             ],
         ),
@@ -148,23 +143,7 @@ def _tracto_wf(
     )
     dseg2mif.inputs.out_file = "t1_5tt.mif"
 
-    # ===== Registration and Transformation =====
-
-    # Note: We use the pre-computed transformation from DWI to T1 space
-    # provided by sMRIprep preprocessing (space2t1w_xfm)
-
-    # Apply pre-computed transformation to 5TT segmentation to align it to DWI space
-    # The transformation is already computed by sMRIprep (space2t1w_xfm from DWI to T1)
-    # We need to apply the inverse to transform from T1 to DWI space
-    transform_5tt = Node(
-        interface=MRTransform(),
-        name="transform_5tt",
-    )
-    transform_5tt.inputs.linear_transform = True
-    transform_5tt.inputs.invert = True
-    transform_5tt.inputs.out_file = "t1_5tt_aligned.mif"
-
-    # Generate GM/WM boundary for seeding
+    # ===== GM/WM Boundary Generation =====
     gmwm_boundary = Node(
         interface=Generate5tt2gmwmi(),
         name="gmwm_boundary",
@@ -234,14 +213,12 @@ def _tracto_wf(
             ),
             # Anatomical processing: Convert pre-computed tissue segmentation (dseg) to MIF
             (input_subject, dseg2mif, [("t1_dseg", "in_file")]),
-            # Transform 5TT segmentation from T1 to DWI space using pre-computed transformation
-            (dseg2mif, transform_5tt, [("out_file", "in_files")]),
-            (input_subject, transform_5tt, [("space2t1w_xfm", "linear_transform")]),
-            # Generate GM/WM boundary
-            (transform_5tt, gmwm_boundary, [("out_file", "in_file")]),
+            # Generate GM/WM boundary from segmentation in T1 space
+            (dseg2mif, gmwm_boundary, [("out_file", "in_file")]),
             # Generate streamlines with anatomical constraints
+            # All processing is in T1 space
             (estimate_fod, tckgen, [("wm_odf", "in_file")]),
-            (transform_5tt, tckgen, [("out_file", "act_file")]),
+            (dseg2mif, tckgen, [("out_file", "act_file")]),
             (gmwm_boundary, tckgen, [("mask_out", "seed_gmwmi")]),
         ]
     )
