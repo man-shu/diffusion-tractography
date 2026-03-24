@@ -55,6 +55,18 @@ def _set_inputs_outputs(config, tracto_wf):
                     )
                 ],
             ),
+            (
+                tracto_wf.get_node("output_subject"),
+                sink_wf,
+                [
+                    ("streamlines", "sinkinputnode.streamlines"),
+                    ("wm_fod", "sinkinputnode.wm_fod"),
+                    ("gm_fod", "sinkinputnode.gm_fod"),
+                    ("csf_fod", "sinkinputnode.csf_fod"),
+                    ("gmwm_boundary", "sinkinputnode.gmwm_boundary"),
+                    ("t1_5tt", "sinkinputnode.t1_5tt"),
+                ],
+            ),
         ]
     )
     return tracto_wf
@@ -166,6 +178,21 @@ def _tracto_wf(
     tckgen.inputs.backtrack = True  # Allow backtracking
     tckgen.inputs.out_file = "streamlines.tck"
 
+    # ===== Output Node =====
+    output_subject = Node(
+        IdentityInterface(
+            fields=[
+                "streamlines",
+                "wm_fod",
+                "gm_fod",
+                "csf_fod",
+                "gmwm_boundary",
+                "t1_5tt",
+            ],
+        ),
+        name="output_subject",
+    )
+
     # Build workflow
     workflow = Workflow(name=name, base_dir=output_dir)
     workflow.connect(
@@ -220,6 +247,19 @@ def _tracto_wf(
             (estimate_fod, tckgen, [("wm_odf", "in_file")]),
             (dseg2mif, tckgen, [("out_file", "act_file")]),
             (gmwm_boundary, tckgen, [("mask_out", "seed_gmwmi")]),
+            # Collect outputs
+            (tckgen, output_subject, [("out_file", "streamlines")]),
+            (
+                estimate_fod,
+                output_subject,
+                [
+                    ("wm_odf", "wm_fod"),
+                    ("gm_odf", "gm_fod"),
+                    ("csf_odf", "csf_fod"),
+                ],
+            ),
+            (gmwm_boundary, output_subject, [("mask_out", "gmwm_boundary")]),
+            (dseg2mif, output_subject, [("out_file", "t1_5tt")]),
         ]
     )
 
