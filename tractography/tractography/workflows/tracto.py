@@ -138,7 +138,6 @@ def _tracto_wf(
         interface=MRConvert(),
         name="dwi2mif",
     )
-    dwi2mif.inputs.grad_fsl = True
     dwi2mif.inputs.out_file = "dwi.mif"
 
     # Derive response functions using Dhollander algorithm
