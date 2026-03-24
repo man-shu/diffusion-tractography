@@ -2,8 +2,9 @@ from configparser import ConfigParser
 from nipype import DataGrabber, Node, Workflow, MapNode, Merge
 from nipype.interfaces.utility import IdentityInterface
 from nipype.interfaces.utility.wrappers import Function
-from nipype.interfaces.fsl import ProbTrackX2, BEDPOSTX5
 import nipype.interfaces.ants as ants
+import nipype.interfaces.mrtrix3 as mrt
+import nipype.interfaces.fsl as fsl
 from .bids import init_bidsdata_wf
 from .sink import init_sink_wf
 
@@ -60,69 +61,29 @@ def _set_inputs_outputs(config, tracto_wf):
 def _tracto_wf(
     config,
     name="diffusion_tractography",
-    n_fibres=3,
-    fudge=1,
-    burn_in=1000,
-    n_jumps=1250,
-    sample_every=25,
+    max_len=250,
+    cutoff=0.06,
+    nstreamlines=10000000,
     output_dir=".",
 ):
+    """
+    MrTrix3-based tractography workflow.
 
-    def shrink_surface_fun(surface, image, distance):
-        from os.path import join, basename
-        from os import getcwd
-        import subprocess
-
-        output_file = str(join(getcwd(), basename(surface)))
-        output_file = output_file.replace(".surf.gii", "_shrunk.surf.gii")
-
-        subprocess.check_call(
-            f"shrink_surface -surface {surface} -reference {image} "
-            f"-mm {distance} -out {output_file}",
-            shell=True,
-        )
-
-        if "L" in output_file:
-            structure_name = "CORTEX_LEFT"
-        elif "R" in output_file:
-            structure_name = "CORTEX_RIGHT"
-
-        if "inflated" in output_file:
-            surface_type = "INFLATED"
-        elif "sphere" in output_file:
-            surface_type = "SPHERICAL"
-        else:
-            surface_type = "ANATOMICAL"
-
-        if "pial" in output_file:
-            secondary_type = "PIAL"
-        if "white" in output_file:
-            secondary_type = "GRAY_WHITE"
-
-        subprocess.check_call(
-            f"wb_command -set-structure {output_file} {structure_name} "
-            f"-surface-type {surface_type} -surface-secondary-type "
-            f"{secondary_type}",
-            shell=True,
-        )
-
-        return output_file
-
-    shrink_surface_node = MapNode(
-        interface=Function(
-            input_names=["surface", "image", "distance"],
-            output_names=["out_file"],
-            function=shrink_surface_fun,
-        ),
-        name="surface_shrink_surface",
-        iterfield=["surface"],
-    )
-    shrink_surface_node.inputs.distance = 3
-
-    roi_source = Node(DataGrabber(infields=[]), name="rois")
-    roi_source.inputs.sort_filelist = True
-    roi_source.inputs.base_directory = config.roi_dir
-    roi_source.inputs.template = "*.nii.gz"
+    Parameters
+    ----------
+    config : object
+        Configuration object containing roi_dir, gpu settings, etc.
+    name : str
+        Name of the workflow
+    max_len : int
+        Maximum length of streamlines in mm
+    cutoff : float
+        FA cutoff for streamline generation
+    nstreamlines : int
+        Number of streamlines to generate
+    output_dir : str
+        Base output directory
+    """
 
     input_subject = Node(
         IdentityInterface(
@@ -140,106 +101,201 @@ def _tracto_wf(
         name="input_subject",
     )
 
-    # node for applying registration from recon to ROIs
-    apply_registration = MapNode(
-        interface=ants.ApplyTransforms(),
-        name="apply_registration",
-        iterfield=["input_image"],
-    )
-    apply_registration.inputs.dimension = 3
-    apply_registration.inputs.input_image_type = 3
-    apply_registration.inputs.interpolation = "NearestNeighbor"
+    # ===== DWI Processing with MrTrix3 =====
 
-    # node for joining seeds
-    join_seeds = Node(
-        interface=Merge(2),
-        name="join_seeds",
+    # Convert preprocessed DWI to MIF format
+    # Uses bvec/bval files in FSL format
+    dwi2mif = Node(
+        interface=mrt.MRConvert(),
+        name="dwi2mif",
     )
+    dwi2mif.inputs.grad_fsl = True
+    dwi2mif.inputs.out_filename = "dwi.mif"
 
-    # bedpost_gpu
-    bedpost_gpu = Node(
-        interface=BEDPOSTX5(), name="bedpost_gpu" if config.gpu else "bedpost"
+    # Derive response functions using Dhollander algorithm
+    # This estimates WM, GM, and CSF response functions
+    response_wm = Node(
+        interface=mrt.ResponseSD(),
+        name="response_wm",
     )
-    bedpost_gpu.inputs.n_fibres = n_fibres
-    bedpost_gpu.inputs.fudge = fudge
-    bedpost_gpu.inputs.burn_in = burn_in
-    bedpost_gpu.inputs.n_jumps = n_jumps
-    bedpost_gpu.inputs.sample_every = sample_every
-    bedpost_gpu.inputs.use_gpu = config.gpu
+    response_wm.inputs.algorithm = "dhollander"
+    response_wm.inputs.wm_file = "wm_response.txt"
+    response_wm.inputs.gm_file = "gm_response.txt"
+    response_wm.inputs.csf_file = "csf_response.txt"
 
-    # setup probtrackx2 node
-    pbx2 = Node(
-        interface=ProbTrackX2(),
-        name="probtrackx2",
+    # Estimate fiber orientation distributions (FOD) using multi-shell multi-tissue CSD
+    estimate_fod = Node(
+        interface=mrt.EstimateFOD(),
+        name="estimate_fod",
     )
-    pbx2.inputs.n_samples = 5000
-    pbx2.inputs.n_steps = 2000
-    pbx2.inputs.step_length = 0.5
-    pbx2.inputs.omatrix1 = True
-    pbx2.inputs.distthresh1 = 5
-    pbx2.inputs.args = " --ompl --fibthresh=0.01 "
+    estimate_fod.inputs.algorithm = "msmt_csd"
+    estimate_fod.inputs.wm_odf = "wm_fod.mif"
+    estimate_fod.inputs.gm_odf = "gm_fod.mif"
+    estimate_fod.inputs.csf_odf = "csf_fod.mif"
 
+    # ===== Anatomical Processing =====
+
+    # Remove NaNs from T1
+    remove_nans = Node(
+        interface=fsl.ImageMaths(),
+        name="remove_nans",
+    )
+    remove_nans.inputs.op_string = "-nan"
+    remove_nans.inputs.out_file = "t1_nonan.nii.gz"
+
+    # Convert T1 to MIF format
+    t12mif = Node(
+        interface=mrt.MRConvert(),
+        name="t12mif",
+    )
+    t12mif.inputs.out_filename = "t1.mif"
+
+    # Generate 5TT segmentation (5-tissue-type) from T1
+    # Uses FSL's tissue classification tools
+    generate_5tt = Node(
+        interface=mrt.Generate5tt(),
+        name="generate_5tt",
+    )
+    generate_5tt.inputs.algorithm = "fsl"
+    generate_5tt.inputs.out_file = "t1_5tt.mif"
+
+    # ===== Registration and Transformation =====
+
+    # Estimate transformation from b0 to T1 using FLIRT
+    # First, we need to extract a mean b0 from the DWI
+    extract_b0 = Node(
+        interface=mrt.MRConvert(),
+        name="extract_b0",
+    )
+    extract_b0.inputs.coord = [3, 0]  # Extract first volume (b=0)
+    extract_b0.inputs.out_filename = "mean_b0.nii.gz"
+
+    # Register DWI (b0) to T1
+    reg_b0_to_t1 = Node(
+        interface=fsl.FLIRT(),
+        name="reg_b0_to_t1",
+    )
+    reg_b0_to_t1.inputs.out_file = "b0_to_t1.nii.gz"
+    reg_b0_to_t1.inputs.out_matrix_file = "b0_to_t1.mat"
+
+    # Convert FSL transformation to MrTrix format
+    convert_xfm = Node(
+        interface=mrt.TransformConvert(),
+        name="convert_xfm",
+    )
+    convert_xfm.inputs.conversion_type = "flirt_import"
+    convert_xfm.inputs.out_file = "b0_to_t1.txt"
+
+    # Apply transformation to 5TT segmentation to align it to DWI space
+    transform_5tt = Node(
+        interface=mrt.MRTransform(),
+        name="transform_5tt",
+    )
+    transform_5tt.inputs.linear_transform = True
+    transform_5tt.inputs.inverse_transform = True
+    transform_5tt.inputs.datatype = "float32"
+    transform_5tt.inputs.out_filename = "t1_5tt_aligned.mif"
+
+    # Generate GM/WM boundary for seeding
+    gmwm_boundary = Node(
+        interface=mrt.MRMath(),
+        name="gmwm_boundary",
+    )
+    gmwm_boundary.inputs.operation = "5tt2gmwmi"
+    gmwm_boundary.inputs.out_filename = "gmwm_boundary.mif"
+
+    # ===== Streamline Generation =====
+
+    # Generate streamlines using ACT (Anatomically Constrained Tractography)
+    tckgen = Node(
+        interface=mrt.Tractography(),
+        name="tckgen",
+    )
+    tckgen.inputs.algorithm = "iFOD2"  # Improved Fiber ODFs
+    tckgen.inputs.select = nstreamlines
+    tckgen.inputs.max_length = max_len
+    tckgen.inputs.min_length = 10
+    tckgen.inputs.cutoff = cutoff
+    tckgen.inputs.use_rk4 = True
+    tckgen.inputs.backtrack = True
+    tckgen.inputs.out_file = "streamlines.tck"
+
+    # Build workflow
     workflow = Workflow(name=name, base_dir=output_dir)
     workflow.connect(
         [
-            (roi_source, apply_registration, [("outfiles", "input_image")]),
+            # DWI to MIF conversion with bvec/bval
             (
                 input_subject,
-                apply_registration,
+                dwi2mif,
                 [
-                    ("space2t1w_xfm", "transforms"),
-                    ("preprocessed_t1", "reference_image"),
+                    ("preprocessed_dwi", "in_file"),
+                    ("rotated_bvec", "bvec_file"),
+                    ("bval", "bval_file"),
+                ],
+            ),
+            # Response function estimation
+            (
+                input_subject,
+                response_wm,
+                [
+                    ("rotated_bvec", "bvec_file"),
+                    ("bval", "bval_file"),
+                    ("preprocessed_t1_mask", "mask_file"),
+                ],
+            ),
+            (dwi2mif, response_wm, [("out_file", "in_file")]),
+            # FOD estimation
+            (dwi2mif, estimate_fod, [("out_file", "in_file")]),
+            (
+                input_subject,
+                estimate_fod,
+                [
+                    ("rotated_bvec", "bvec_file"),
+                    ("bval", "bval_file"),
+                    ("preprocessed_t1_mask", "mask_file"),
                 ],
             ),
             (
-                input_subject,
-                shrink_surface_node,
-                [("surfaces_t1", "surface")],
-            ),
-            (
-                input_subject,
-                shrink_surface_node,
-                [("preprocessed_t1", "image")],
-            ),
-            (
-                shrink_surface_node,
-                join_seeds,
-                [("out_file", "in1")],
-            ),
-            (apply_registration, join_seeds, [("output_image", "in2")]),
-            (
-                join_seeds,
-                pbx2,
+                response_wm,
+                estimate_fod,
                 [
-                    ("out", "seed"),
+                    ("wm_file", "wm_response_file"),
+                    ("gm_file", "gm_response_file"),
+                    ("csf_file", "csf_response_file"),
                 ],
             ),
+            # T1 processing
+            (input_subject, remove_nans, [("preprocessed_t1", "in_file")]),
+            (remove_nans, t12mif, [("out_file", "in_file")]),
+            (t12mif, generate_5tt, [("out_file", "in_file")]),
+            # Extract b0 for registration
+            (dwi2mif, extract_b0, [("out_file", "in_file")]),
+            # Register b0 to T1
+            (extract_b0, reg_b0_to_t1, [("out_file", "in_file")]),
+            (remove_nans, reg_b0_to_t1, [("out_file", "reference")]),
+            # Convert transformation
             (
-                input_subject,
-                bedpost_gpu,
-                [
-                    ("bval", "bvals"),
-                    ("rotated_bvec", "bvecs"),
-                    ("preprocessed_dwi", "dwi"),
-                    ("preprocessed_t1_mask", "mask"),
-                ],
+                reg_b0_to_t1,
+                convert_xfm,
+                [("out_matrix_file", "transform_file")],
             ),
+            (extract_b0, convert_xfm, [("out_file", "in_file")]),
+            (remove_nans, convert_xfm, [("out_file", "reference_file")]),
+            # Transform 5TT to DWI space
+            (generate_5tt, transform_5tt, [("out_file", "in_file")]),
             (
-                input_subject,
-                pbx2,
-                [
-                    ("preprocessed_t1_mask", "mask"),
-                ],
+                convert_xfm,
+                transform_5tt,
+                [("out_file", "linear_transform_file")],
             ),
-            (
-                bedpost_gpu,
-                pbx2,
-                [
-                    ("merged_thsamples", "thsamples"),
-                    ("merged_fsamples", "fsamples"),
-                    ("merged_phsamples", "phsamples"),
-                ],
-            ),
+            # Generate GM/WM boundary
+            (transform_5tt, gmwm_boundary, [("out_file", "in_file")]),
+            # Generate streamlines
+            (estimate_fod, tckgen, [("wm_odf", "seed_image")]),
+            (transform_5tt, tckgen, [("out_file", "act_file")]),
+            (gmwm_boundary, tckgen, [("out_file", "seed_gmwmi")]),
         ]
     )
+
     return workflow
