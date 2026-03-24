@@ -13,9 +13,31 @@ from nipype.interfaces.mrtrix3 import (
     Generate5tt2gmwmi,
     Tractography,
 )
+from nipype.interfaces.mrtrix3.utils import (
+    Generate5ttInputSpec,
+    Generate5ttOutputSpec,
+)
+from nipype.interfaces.mrtrix3.base import MRTrix3Base
+from nipype.interfaces.base import traits, File
 from .bids import init_bidsdata_wf
 from .sink import init_sink_wf
 from .report import init_report_wf
+
+
+# Custom Generate5tt interface with proper lut_file positioning
+class Generate5ttWithLUT(MRTrix3Base):
+    """Generate5tt with proper LUT file argument positioning for freesurfer algorithm."""
+
+    class input_spec(Generate5ttInputSpec):
+        lut_file = File(
+            exists=True,
+            argstr="-lut %s",
+            position=-2.1,  # This will place it after algorithm but before in_file
+            desc="Manually provide path to the lookup table.",
+        )
+
+    output_spec = Generate5ttOutputSpec
+    _cmd = "5ttgen"
 
 
 def init_tracto_wf(output_dir=".", config=None):
@@ -166,8 +188,9 @@ def _tracto_wf(
 
     # Generate 5-tissue segmentation from anatomical image using freesurfer-style segmentation
     # This converts the tissue segmentation (dseg from sMRIprep) to MrTrix3's 5-tissue format
+    # Uses custom interface with proper LUT file argument positioning
     generate5tt = Node(
-        interface=Generate5tt(),
+        interface=Generate5ttWithLUT(),
         name="generate5tt",
     )
     generate5tt.inputs.algorithm = "freesurfer"
