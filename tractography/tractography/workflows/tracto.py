@@ -9,6 +9,7 @@ from nipype.interfaces.mrtrix3 import (
     ResponseSD,
     EstimateFOD,
     MRTransform,
+    Generate5tt,
     Generate5tt2gmwmi,
     Tractography,
 )
@@ -163,13 +164,14 @@ def _tracto_wf(
 
     # ===== Anatomical Processing =====
 
-    # Convert tissue segmentation (dseg from smriprep) to MIF format
-    # The dseg file from sMRIprep already contains the 5-tissue segmentation
-    dseg2mif = Node(
-        interface=MRConvert(),
-        name="dseg2mif",
+    # Generate 5-tissue segmentation from anatomical image using freesurfer-style segmentation
+    # This converts the tissue segmentation (dseg from sMRIprep) to MrTrix3's 5-tissue format
+    generate5tt = Node(
+        interface=Generate5tt(),
+        name="generate5tt",
     )
-    dseg2mif.inputs.out_file = "t1_5tt.mif"
+    generate5tt.inputs.algorithm = "freesurfer"
+    generate5tt.inputs.out_file = "t1_5tt.mif"
 
     # ===== GM/WM Boundary Generation =====
     gmwm_boundary = Node(
@@ -254,14 +256,14 @@ def _tracto_wf(
                     ("csf_file", "csf_txt"),
                 ],
             ),
-            # Anatomical processing: Convert pre-computed tissue segmentation (dseg) to MIF
-            (input_subject, dseg2mif, [("t1_dseg", "in_file")]),
-            # Generate GM/WM boundary from segmentation in T1 space
-            (dseg2mif, gmwm_boundary, [("out_file", "in_file")]),
+            # Anatomical processing: Generate 5-tissue segmentation from dseg
+            (input_subject, generate5tt, [("t1_dseg", "in_file")]),
+            # Generate GM/WM boundary from 5-tissue segmentation
+            (generate5tt, gmwm_boundary, [("out_file", "in_file")]),
             # Generate streamlines with anatomical constraints
             # All processing is in T1 space
             (estimate_fod, tckgen, [("wm_odf", "in_file")]),
-            (dseg2mif, tckgen, [("out_file", "act_file")]),
+            (generate5tt, tckgen, [("out_file", "act_file")]),
             (gmwm_boundary, tckgen, [("mask_out", "seed_gmwmi")]),
             # Collect outputs
             (tckgen, output_subject, [("out_file", "streamlines")]),
@@ -275,7 +277,7 @@ def _tracto_wf(
                 ],
             ),
             (gmwm_boundary, output_subject, [("mask_out", "gmwm_boundary")]),
-            (dseg2mif, output_subject, [("out_file", "t1_5tt")]),
+            (generate5tt, output_subject, [("out_file", "t1_5tt")]),
         ]
     )
 
