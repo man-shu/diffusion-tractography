@@ -46,6 +46,7 @@ DEFAULT_BIDS_QUERIES = {
         "datatype": "anat",
         "suffix": "dseg",
         "space": None,
+        "desc": "aseg",
         "extension": [".nii", ".nii.gz"],
     },
     "surfaces_t1": {
