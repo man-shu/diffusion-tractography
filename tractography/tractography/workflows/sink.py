@@ -50,33 +50,7 @@ def init_sink_wf(config, name="sink_wf"):
 
         bids_name = _build_bids(bids_entities)
 
-        substitutions = [
-            (
-                "clipped_mask",
-                f"{bids_name}_space-individualT1_desc-mask+bbreg_dwi",
-            ),
-            (
-                "vol0000_flirt_merged_warped",
-                f"{bids_name}_space-individualT1_desc-mppcadenoised+gibbsunringed+eddycorrected+bbreg_dwi",
-            ),
-            (
-                "vol0000_flirt_merged",
-                f"{bids_name}_desc-mppcadenoised+gibbsunringed+eddycorrected_dwi",
-            ),
-            (
-                f"registered_mean_bzero",
-                f"{bids_name}_space-individualT1_"
-                "desc-mppcadenoised+gibbsunringed+eddycorrected+bbreg+meanb0_dwi",
-            ),
-            (
-                f"{bids_name}_dwi_rot.bvec",
-                f"{bids_name}_desc-rotated_dwi.bvec",
-            ),
-            (
-                f"{bids_name}_report.html",
-                f"{bids_name}_report.html",
-            ),
-        ]
+        substitutions = []
 
         # Add tractography outputs if provided
         if streamlines:
