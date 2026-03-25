@@ -6,17 +6,7 @@ from nipype.interfaces.io import DataSink
 def init_sink_wf(config, name="sink_wf"):
 
     inputnode = Node(
-        IdentityInterface(
-            fields=[
-                "bids_entities",
-                "streamlines",
-                "wm_fod",
-                "gm_fod",
-                "csf_fod",
-                "gmwm_boundary",
-                "t1_5tt",
-            ]
-        ),
+        IdentityInterface(fields=["bids_entities"]),
         name="sinkinputnode",
     )
 
@@ -42,51 +32,36 @@ def init_sink_wf(config, name="sink_wf"):
 
         bids_name = _build_bids(bids_entities)
 
-        substitutions = []
-
-        # Add tractography outputs if provided
-        if streamlines:
-            substitutions.append(
-                (
-                    "streamlines.tck",
-                    f"{bids_name}_space-T1_desc-iFOD2+ACT+10M_tractography.tck",
-                )
-            )
-        if wm_fod:
-            substitutions.append(
-                (
-                    "wm_fod.mif",
-                    f"{bids_name}_space-T1_desc-msmt+csd_wm_fod.mif",
-                )
-            )
-        if gm_fod:
-            substitutions.append(
-                (
-                    "gm_fod.mif",
-                    f"{bids_name}_space-T1_desc-msmt+csd_gm_fod.mif",
-                )
-            )
-        if csf_fod:
-            substitutions.append(
-                (
-                    "csf_fod.mif",
-                    f"{bids_name}_space-T1_desc-msmt+csd_csf_fod.mif",
-                )
-            )
-        if gmwm_boundary:
-            substitutions.append(
-                (
-                    "gmwm_boundary.mif",
-                    f"{bids_name}_space-T1_desc-gmwm+boundary_mask.mif",
-                )
-            )
-        if t1_5tt:
-            substitutions.append(
-                (
-                    "t1_5tt.mif",
-                    f"{bids_name}_space-T1_desc-5tissue+segmentation_space.mif",
-                )
-            )
+        substitutions = [
+            (
+                "streamlines.tck",
+                f"{bids_name}_space-T1_desc-iFOD2+ACT+10M_tractography.tck",
+            ),
+            (
+                "wm_fod.mif",
+                f"{bids_name}_space-T1_desc-msmt+csd_wm_fod.mif",
+            ),
+            (
+                "gm_fod.mif",
+                f"{bids_name}_space-T1_desc-msmt+csd_gm_fod.mif",
+            ),
+            (
+                "csf_fod.mif",
+                f"{bids_name}_space-T1_desc-msmt+csd_csf_fod.mif",
+            ),
+            (
+                "gmwm_boundary.mif",
+                f"{bids_name}_space-T1_desc-gmwm+boundary_mask.mif",
+            ),
+            (
+                "t1_5tt.mif",
+                f"{bids_name}_space-T1_desc-5tissue+segmentation_space.mif",
+            ),
+            (
+                f"{bids_name}_report.html",
+                f"{bids_name}_report.html",
+            ),
+        ]
 
         # add root directory with derivatives/diffusion-tractography structure
         for i, (src, dst) in enumerate(substitutions):
