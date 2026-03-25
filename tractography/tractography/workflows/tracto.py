@@ -11,7 +11,11 @@ from nipype.interfaces.mrtrix3 import (
     MRTransform,
     Generate5tt,
     Generate5tt2gmwmi,
-    Tractography,
+    Tractography as MRTrix3Tractography,
+)
+from nipype.interfaces.mrtrix3.tracking import (
+    TractographyInputSpec,
+    TractographyOutputSpec,
 )
 from nipype.interfaces.mrtrix3.utils import (
     Generate5ttInputSpec,
@@ -74,6 +78,38 @@ class Generate5ttWithLUT(MRTrix3Base):
 
         cmdline = " ".join(cmd_parts)
         return cmdline
+
+
+# Custom Tractography interface with nthreads support
+class TractographyWithNThreads(MRTrix3Base):
+    """Tractography with nthreads parameter for controlling parallelization."""
+
+    class input_spec(TractographyInputSpec):
+        # Add nthreads parameter
+        nthreads = traits.Int(
+            argstr="-nthreads %d",
+            desc="Number of threads to use for tractography",
+        )
+
+    output_spec = TractographyOutputSpec
+    _cmd = "tckgen"
+
+    def _format_arg(self, name, trait_spec, value):
+        """Format arguments like the parent class."""
+        if "roi_" in name and isinstance(value, tuple):
+            value = ["%f" % v for v in value]
+            return trait_spec.argstr % ",".join(value)
+        return super()._format_arg(name, trait_spec, value)
+
+    def _list_outputs(self):
+        """Capture output files."""
+        import os.path as op
+
+        outputs = self.output_spec().get()
+        outputs["out_file"] = op.abspath(self.inputs.out_file)
+        if isdefined(self.inputs.out_seeds):
+            outputs["out_seeds"] = op.abspath(self.inputs.out_seeds)
+        return outputs
 
 
 def init_tracto_wf(output_dir=".", config=None):
@@ -241,7 +277,7 @@ def _tracto_wf(
 
     # Generate streamlines using ACT (Anatomically Constrained Tractography)
     tckgen = Node(
-        interface=Tractography(),
+        interface=TractographyWithNThreads(),
         name="tckgen",
     )
     tckgen.inputs.algorithm = "iFOD2"  # Improved Fiber ODFs
@@ -251,6 +287,14 @@ def _tracto_wf(
     tckgen.inputs.cutoff = cutoff  # FOD amplitude cutoff
     tckgen.inputs.backtrack = True  # Allow backtracking
     tckgen.inputs.out_file = "streamlines.tck"
+
+    # Set nthreads if config provides it
+    if (
+        config
+        and hasattr(config, "n_threads")
+        and config.n_threads is not None
+    ):
+        tckgen.inputs.nthreads = config.n_threads
 
     # ===== Output Node =====
     output_subject = Node(
