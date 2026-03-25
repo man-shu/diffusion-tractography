@@ -216,7 +216,7 @@ def _tracto_wf(
         name="estimate_fod",
     )
     estimate_fod.inputs.algorithm = "msmt_csd"
-    estimate_fod.inputs.lmax = [8, 8, 8]  # lmax for WM, GM, CSF tissues
+    estimate_fod.inputs.max_sh = [8, 8, 8]  # lmax for WM, GM, CSF tissues
     estimate_fod.inputs.wm_odf = "wm_fod.mif"
     estimate_fod.inputs.gm_odf = "gm_fod.mif"
     estimate_fod.inputs.csf_odf = "csf_fod.mif"
