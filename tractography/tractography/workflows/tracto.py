@@ -99,6 +99,7 @@ def _set_inputs_outputs(config, tracto_wf):
                         "preprocessed_t1_mask",
                     ),
                     ("output.preprocessed_dwi", "preprocessed_dwi"),
+                    ("output.preprocessed_t1", "preprocessed_t1"),
                     ("output.bval", "bval"),
                     ("output.rotated_bvec", "rotated_bvec"),
                     ("output.t1_dseg", "t1_dseg"),
@@ -176,6 +177,7 @@ def _tracto_wf(
                 "bval",
                 "rotated_bvec",
                 "preprocessed_t1_mask",
+                "preprocessed_t1",
                 "bids_entities",
                 "t1_dseg",
             ],
@@ -347,8 +349,14 @@ def _tracto_wf(
                 report,
                 [
                     ("streamlines", "report_inputnode.streamlines"),
-                    ("wm_fod", "report_inputnode.wm_fod"),
-                    ("gmwm_boundary", "report_inputnode.gmwm_boundary"),
+                ],
+            ),
+            (
+                input_subject,
+                report,
+                [
+                    ("preprocessed_t1", "report_inputnode.t1w"),
+                    ("preprocessed_dwi", "report_inputnode.dwi"),
                 ],
             ),
         ]

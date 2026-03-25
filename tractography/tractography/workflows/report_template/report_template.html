@@ -200,38 +200,6 @@
             </div>
         </div>
 
-        <!-- FOD and Seeding Section -->
-        <div class="section">
-            <h2>Fiber Orientation Distributions & Seeding</h2>
-            <p style="color: #666; margin-bottom: 20px;">
-                FOD magnitude maps and seeding masks used for streamline generation.
-            </p>
-
-            <div class="grid-2">
-                <div class="grid-item">
-                    <h4>White Matter FOD (msmt-csd)</h4>
-                    <div class="plot-description">
-                        Multi-shell multi-tissue constrained spherical deconvolution (CSD)
-                        fiber orientation distribution. Orange-to-yellow indicates higher FOD amplitudes.
-                    </div>
-                    <div class="plot-container">
-                        ${plot_fod}
-                    </div>
-                </div>
-
-                <div class="grid-item">
-                    <h4>GM/WM Boundary (Seed Region)</h4>
-                    <div class="plot-description">
-                        Gray matter / white matter boundary used as the seed region for streamline generation
-                        (green contours). Ensures streamlines originate from physiologically plausible locations.
-                    </div>
-                    <div class="plot-container">
-                        ${plot_gmwm}
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Processing Details Section -->
         <div class="section">
             <h2>Processing Details</h2>

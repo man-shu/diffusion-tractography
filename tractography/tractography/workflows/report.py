@@ -6,6 +6,102 @@ TEMPLATE_ROOT = os.path.join(os.path.dirname(__file__), "report_template")
 REPORT_TEMPLATE = os.path.join(TEMPLATE_ROOT, "report_template.html")
 
 
+def read_tck_file(tck_file):
+    """Read streamlines from MRTrix3 TCK file format.
+
+    TCK format consists of a text header followed by binary track data.
+    Tracks are separated by NaN triplets and file ends with Inf triplet.
+
+    Parameters
+    ----------
+    tck_file : str
+        Path to .tck file
+
+    Returns
+    -------
+    streamlines_list : list of ndarray
+        List of streamlines, each as an Nx3 array of coordinates
+    """
+    import numpy as np
+    import struct
+    import os
+
+    streamlines_list = []
+
+    with open(tck_file, "rb") as f:
+        # Read header
+        header_lines = []
+        offset = None
+        datatype = "Float32LE"  # Default
+
+        while True:
+            line = f.readline().decode("utf-8").strip()
+            header_lines.append(line)
+
+            if line.startswith("file:"):
+                # Extract file offset
+                parts = line.split()
+                offset = int(parts[-1])
+
+            if line.startswith("datatype:"):
+                datatype = line.split()[-1]
+
+            if line == "END":
+                break
+
+        if offset is None:
+            raise ValueError("No 'file:' offset found in TCK header")
+
+        # Determine float format
+        if "Float32" in datatype:
+            fmt = "f"  # 32-bit float
+            float_size = 4
+        elif "Float64" in datatype:
+            fmt = "d"  # 64-bit float
+            float_size = 8
+        else:
+            raise ValueError(f"Unsupported datatype: {datatype}")
+
+        # Determine byte order
+        if "BE" in datatype:
+            byte_order = ">"  # Big endian
+        else:
+            byte_order = "<"  # Little endian (default)
+
+        # Move to binary data
+        f.seek(offset)
+
+        # Read binary track data
+        current_streamline = []
+
+        while True:
+            # Read triplet of floats
+            data = f.read(3 * float_size)
+            if len(data) < 3 * float_size:
+                break  # End of file
+
+            # Unpack triplet
+            fmt_str = byte_order + "3" + fmt
+            triplet = struct.unpack(fmt_str, data)
+
+            # Check for end of file marker (all Inf)
+            if all(np.isinf(v) for v in triplet):
+                if current_streamline:
+                    streamlines_list.append(np.array(current_streamline))
+                    current_streamline = []
+                break
+
+            # Check for track separator (all NaN)
+            if all(np.isnan(v) for v in triplet):
+                if current_streamline:
+                    streamlines_list.append(np.array(current_streamline))
+                    current_streamline = []
+            else:
+                current_streamline.append(triplet)
+
+    return streamlines_list
+
+
 def plot_streamlines_on_image(
     streamlines_file, background_file, title="Streamlines"
 ):
@@ -30,18 +126,10 @@ def plot_streamlines_on_image(
     from nilearn.plotting import plot_anat
     from nilearn.image import new_img_like
     import matplotlib.pyplot as plt
-    import tempfile
     import os
 
-    try:
-        # Try to import MRtrix3 module for loading .tck files
-        import mrtrix3
-
-        streamlines_list = mrtrix3.read_mrtrix(streamlines_file)[0]
-    except:
-        # Fallback: create empty streamlines for visualization
-        print(f"Warning: Could not load streamlines from {streamlines_file}")
-        streamlines_list = []
+    # Read TCK file
+    streamlines_list = read_tck_file(streamlines_file)
 
     # Load background image
     bg_img = nib.load(background_file)
@@ -94,133 +182,8 @@ def plot_streamlines_on_image(
     return os.path.abspath(out_file)
 
 
-def plot_fod_peaks(wm_fod_file, background_file, title="WM FOD"):
-    """Plot WM fiber orientation distributions as overlay.
-
-    Parameters
-    ----------
-    wm_fod_file : str
-        Path to WM FOD .mif file
-    background_file : str
-        Path to background anatomical image (NIfTI)
-    title : str
-        Title for the plot
-
-    Returns
-    -------
-    out_file : str
-        Path to output SVG file
-    """
-    import nibabel as nib
-    import numpy as np
-    from nilearn.plotting import plot_anat
-    from nilearn.image import new_img_like
-    import matplotlib.pyplot as plt
-    import os
-
-    try:
-        # Try to load FOD as MIF
-        import mrtrix3
-
-        fod_data, fod_affine = mrtrix3.read_mrtrix(wm_fod_file)[:2]
-    except:
-        # Fallback: try loading as NIfTI if converted
-        try:
-            fod_img = nib.load(wm_fod_file.replace(".mif", ".nii.gz"))
-            fod_data = fod_img.get_fdata()
-            fod_affine = fod_img.affine
-        except:
-            print(f"Warning: Could not load FOD from {wm_fod_file}")
-            # Create dummy output
-            out_file = "fod_peaks.svg"
-            return os.path.abspath(out_file)
-
-    # Load background
-    bg_img = nib.load(background_file)
-
-    # Extract magnitude from FOD (sum across spherical harmonics)
-    if len(fod_data.shape) == 4:
-        fod_mag = np.sqrt(np.sum(fod_data**2, axis=3))
-    else:
-        fod_mag = fod_data
-
-    # Normalize
-    fod_mag = fod_mag / fod_mag.max() if fod_mag.max() > 0 else fod_mag
-
-    # Create image with FOD magnitude
-    fod_img = new_img_like(bg_img, fod_mag)
-
-    # Create plot
-    display = plot_anat(bg_img, title=title, display_mode="ortho")
-    display.add_contours(
-        fod_img, levels=[0.3, 0.6, 0.9], colors=["red", "orange", "yellow"]
-    )
-
-    out_file = "fod_peaks.svg"
-    display.savefig(out_file, format="svg")
-    plt.close()
-
-    return os.path.abspath(out_file)
-
-
-def plot_gmwm_boundary(gmwm_file, background_file, title="GM/WM Boundary"):
-    """Plot GM/WM boundary mask overlay.
-
-    Parameters
-    ----------
-    gmwm_file : str
-        Path to GM/WM boundary .mif file
-    background_file : str
-        Path to background anatomical image (NIfTI)
-    title : str
-        Title for the plot
-
-    Returns
-    -------
-    out_file : str
-        Path to output SVG file
-    """
-    import nibabel as nib
-    import numpy as np
-    from nilearn.plotting import plot_anat
-    from nilearn.image import new_img_like
-    import matplotlib.pyplot as plt
-    import os
-
-    try:
-        # Load GM/WM boundary
-        import mrtrix3
-
-        gmwm_data, gmwm_affine = mrtrix3.read_mrtrix(gmwm_file)[:2]
-    except:
-        try:
-            gmwm_img = nib.load(gmwm_file.replace(".mif", ".nii.gz"))
-            gmwm_data = gmwm_img.get_fdata()
-        except:
-            print(f"Warning: Could not load GM/WM boundary from {gmwm_file}")
-            out_file = "gmwm_boundary.svg"
-            return os.path.abspath(out_file)
-
-    # Load background
-    bg_img = nib.load(background_file)
-
-    # Binarize
-    gmwm_mask = (gmwm_data > 0).astype(float)
-
-    # Create image
-    gmwm_img = new_img_like(bg_img, gmwm_mask)
-
-    # Create plot
-    display = plot_anat(bg_img, title=title, display_mode="ortho")
-    display.add_contours(
-        gmwm_img, levels=[0.5], colors=["green"], linewidths=1.5
-    )
-
-    out_file = "gmwm_boundary.svg"
-    display.savefig(out_file, format="svg")
-    plt.close()
-
-    return os.path.abspath(out_file)
+# FOD and GMWM plotting functions have been removed as they require MIF format images.
+# The report now focuses on streamline visualizations with T1 and DWI background images.
 
 
 def create_html_report(
@@ -234,7 +197,6 @@ def create_html_report(
     import os
     import string
     from nilearn.plotting.html_document import HTMLDocument
-    import base64
 
     def _embed_svg(to_embed, template_path=template_path):
         with open(template_path) as f:
@@ -247,22 +209,15 @@ def create_html_report(
 
     def _get_html_text(subject_id, *args):
         to_embed = {"subject_id": subject_id}
-        recon_plots = {
-            "T1w.svg": "plot_recon_surface_on_t1",
-            "dseg.svg": "plot_recon_segmentations_on_t1",
-        }
-        for plot in args:
-            if plot is not None:
+        plot_names = ["plot_streamlines_t1w", "plot_streamlines_dwi"]
+
+        for idx, plot in enumerate(args):
+            if plot is not None and idx < len(plot_names):
                 with open(plot, "r", encoding="utf-8") as f:
                     svg_text = f.read()
                 f.close()
-                # get the plot name from the path
-                if "smriprep" in plot:
-                    suffix = plot.split(os.path.sep)[-1].split("_")[-1]
-                    plot_name = recon_plots[suffix]
-                else:
-                    plot_name = plot.split(os.path.sep)[-2]
-                to_embed[plot_name] = svg_text
+                to_embed[plot_names[idx]] = svg_text
+
         return _embed_svg(to_embed)
 
     def _build_bids(bids_entities):
@@ -298,11 +253,13 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
 
     Parameters
     ----------
-    name : str, optional, by default "report"
-        Name of the workflow
-    output_dir : str, optional, by default "."
+    calling_wf_name : str
+        Name of the calling workflow
+    output_dir : str
         Base directory to store the reports. The workflow will create a
         subdirectory called 'report' in this directory to store the reports.
+    name : str, optional, by default "report"
+        Name of the workflow
 
     Returns
     -------
@@ -315,8 +272,8 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
             fields=[
                 "bids_entities",
                 "streamlines",
-                "wm_fod",
-                "gmwm_boundary",
+                "t1w",
+                "dwi",
             ]
         ),
         name="report_inputnode",
@@ -335,7 +292,7 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
         function=plot_streamlines_on_image,
     )
     plot_streamlines_t1 = Node(PlotStreamlinesT1, name="plot_streamlines_t1")
-    plot_streamlines_t1.inputs.title = "Streamlines on T1 (iFOD2+ACT)"
+    plot_streamlines_t1.inputs.title = "Streamlines on T1w"
 
     # Plot streamlines on DWI
     PlotStreamlinesDWI = Function(
@@ -348,26 +305,8 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
     )
     plot_streamlines_dwi.inputs.title = "Streamlines on DWI"
 
-    # Plot WM FOD
-    PlotFOD = Function(
-        input_names=["wm_fod_file", "background_file", "title"],
-        output_names=["out_file"],
-        function=plot_fod_peaks,
-    )
-    plot_fod = Node(PlotFOD, name="plot_fod")
-    plot_fod.inputs.title = "White Matter FOD (msmt-csd)"
-
-    # Plot GM/WM boundary
-    PlotGMWM = Function(
-        input_names=["gmwm_file", "background_file", "title"],
-        output_names=["out_file"],
-        function=plot_gmwm_boundary,
-    )
-    plot_gmwm = Node(PlotGMWM, name="plot_gmwm")
-    plot_gmwm.inputs.title = "GM/WM Boundary (Seed Region)"
-
-    # Create a Merge node to combine tractography plots
-    merge_node = Node(Merge(4), name="merge_node")
+    # Create a Merge node to combine streamline plots
+    merge_node = Node(Merge(2), name="merge_node")
 
     # embed plots in a html template
     CreateHTML = Function(
@@ -387,17 +326,18 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
     create_html.inputs.report_wf_name = name
     create_html.inputs.template_path = REPORT_TEMPLATE
     create_html.inputs.output_dir = output_dir
+
     workflow = Workflow(name=name, base_dir=output_dir)
     workflow.connect(
         [
-            # ===== Tractography Plotting Connections =====
+            # ===== Streamline Plotting Connections =====
             # Plot streamlines on T1
             (
                 inputnode,
                 plot_streamlines_t1,
                 [
                     ("streamlines", "streamlines_file"),
-                    ("wm_fod", "background_file"),
+                    ("t1w", "background_file"),
                 ],
             ),
             # Plot streamlines on DWI
@@ -406,32 +346,12 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
                 plot_streamlines_dwi,
                 [
                     ("streamlines", "streamlines_file"),
-                    ("wm_fod", "background_file"),
+                    ("dwi", "background_file"),
                 ],
             ),
-            # Plot WM FOD
-            (
-                inputnode,
-                plot_fod,
-                [
-                    ("wm_fod", "wm_fod_file"),
-                    ("wm_fod", "background_file"),
-                ],
-            ),
-            # Plot GM/WM boundary
-            (
-                inputnode,
-                plot_gmwm,
-                [
-                    ("gmwm_boundary", "gmwm_file"),
-                    ("wm_fod", "background_file"),
-                ],
-            ),
-            # Add tractography plots to merge node
+            # Add streamline plots to merge node
             (plot_streamlines_t1, merge_node, [("out_file", "in1")]),
             (plot_streamlines_dwi, merge_node, [("out_file", "in2")]),
-            (plot_fod, merge_node, [("out_file", "in3")]),
-            (plot_gmwm, merge_node, [("out_file", "in4")]),
             # input the bids_entities
             (inputnode, create_html, [("bids_entities", "bids_entities")]),
             # create the html report
