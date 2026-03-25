@@ -18,7 +18,7 @@ from nipype.interfaces.mrtrix3.utils import (
     Generate5ttOutputSpec,
 )
 from nipype.interfaces.mrtrix3.base import MRTrix3Base
-from nipype.interfaces.base import traits, File
+from nipype.interfaces.base import traits, File, isdefined
 from .bids import init_bidsdata_wf
 from .sink import init_sink_wf
 from .report import init_report_wf
@@ -26,18 +26,26 @@ from .report import init_report_wf
 
 # Custom Generate5tt interface with proper lut_file positioning
 class Generate5ttWithLUT(MRTrix3Base):
-    """Generate5tt with proper LUT file argument positioning for freesurfer algorithm."""
+    """Generate5tt with LUT file support using explicit input/output specs."""
 
     class input_spec(Generate5ttInputSpec):
+        # Add lut_file as an optional parameter
         lut_file = File(
             exists=True,
             argstr="-lut %s",
-            position=-2.1,  # This will place it after algorithm but before in_file
             desc="Manually provide path to the lookup table.",
         )
 
     output_spec = Generate5ttOutputSpec
     _cmd = "5ttgen"
+
+    def _list_outputs(self):
+        """Capture the output file from Generate5tt."""
+        import os.path as op
+
+        outputs = self.output_spec().get()
+        outputs["out_file"] = op.abspath(self.inputs.out_file)
+        return outputs
 
 
 def init_tracto_wf(output_dir=".", config=None):
