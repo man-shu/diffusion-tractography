@@ -21,15 +21,7 @@ def init_sink_wf(config, name="sink_wf"):
     )
 
     ### build the full file name
-    def build_substitutions(
-        bids_entities,
-        streamlines=None,
-        wm_fod=None,
-        gm_fod=None,
-        csf_fod=None,
-        gmwm_boundary=None,
-        t1_5tt=None,
-    ):
+    def build_substitutions(bids_entities):
 
         import os
         from pathlib import Path
@@ -118,15 +110,7 @@ def init_sink_wf(config, name="sink_wf"):
         return substitutions
 
     BuildSubstitutions = Function(
-        input_names=[
-            "bids_entities",
-            "streamlines",
-            "wm_fod",
-            "gm_fod",
-            "csf_fod",
-            "gmwm_boundary",
-            "t1_5tt",
-        ],
+        input_names=["bids_entities"],
         output_names=["substitutions"],
         function=build_substitutions,
     )
@@ -143,15 +127,7 @@ def init_sink_wf(config, name="sink_wf"):
             (
                 inputnode,
                 build_substitutions,
-                [
-                    ("bids_entities", "bids_entities"),
-                    ("streamlines", "streamlines"),
-                    ("wm_fod", "wm_fod"),
-                    ("gm_fod", "gm_fod"),
-                    ("csf_fod", "csf_fod"),
-                    ("gmwm_boundary", "gmwm_boundary"),
-                    ("t1_5tt", "t1_5tt"),
-                ],
+                [("bids_entities", "bids_entities")],
             ),
             (build_substitutions, sink, [("substitutions", "substitutions")]),
         ]

@@ -341,9 +341,9 @@ def _tracto_wf(
                 output_subject,
                 report.get_node("report_inputnode"),
                 [
-                    ("streamlines", "streamlines"),
-                    ("wm_fod", "wm_fod"),
-                    ("gmwm_boundary", "gmwm_boundary"),
+                    ("streamlines", "report_inputnode.streamlines"),
+                    ("wm_fod", "report_inputnode.wm_fod"),
+                    ("gmwm_boundary", "report_inputnode.gmwm_boundary"),
                 ],
             ),
         ]
