@@ -27,11 +27,9 @@ def plot_streamlines_on_image(
     """
     import nibabel as nib
     import numpy as np
-    from nilearn.plotting.js_plotting_utils import get_colorbar
     from nilearn.plotting import plot_anat
     from nilearn.image import new_img_like
     import matplotlib.pyplot as plt
-    from matplotlib import cm
     import tempfile
     import os
 
