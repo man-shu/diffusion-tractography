@@ -127,6 +127,16 @@ def _set_inputs_outputs(config, tracto_wf):
                     ("t1_5tt", "diffusion_tractography.@t1_5tt"),
                 ],
             ),
+            (
+                tracto_wf.get_node("report"),
+                sink_wf.get_node("sink"),
+                [
+                    (
+                        "report_outputnode.report_file",
+                        "diffusion_tractography.@report",
+                    )
+                ],
+            ),
         ]
     )
     return tracto_wf
@@ -328,12 +338,17 @@ def _tracto_wf(
             (generate5tt, output_subject, [("out_file", "t1_5tt")]),
             # Connect tractography outputs to report
             (
+                input_subject,
+                report.get_node("report_inputnode"),
+                [("bids_entities", "bids_entities")],
+            ),
+            (
                 output_subject,
                 report.get_node("report_inputnode"),
                 [
-                    ("streamlines", "report_inputnode.streamlines"),
-                    ("wm_fod", "report_inputnode.wm_fod"),
-                    ("gmwm_boundary", "report_inputnode.gmwm_boundary"),
+                    ("streamlines", "streamlines"),
+                    ("wm_fod", "wm_fod"),
+                    ("gmwm_boundary", "gmwm_boundary"),
                 ],
             ),
         ]
