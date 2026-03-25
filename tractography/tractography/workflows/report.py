@@ -1,20 +1,19 @@
 from nipype.interfaces.utility.wrappers import Function
 from nipype import IdentityInterface, Node, Workflow, Merge
+from nipype.interfaces.mrtrix3.utils import ComputeTDI
 import os
 
 TEMPLATE_ROOT = os.path.join(os.path.dirname(__file__), "report_template")
 REPORT_TEMPLATE = os.path.join(TEMPLATE_ROOT, "report_template.html")
 
 
-def plot_streamlines_on_image(
-    streamlines_file, background_file, title="Streamlines"
-):
-    """Plot streamlines as density map overlaid on anatomical image.
+def plot_tdi_on_image(tdi_file, background_file, title="Track Density"):
+    """Plot track density image overlaid on anatomical image.
 
     Parameters
     ----------
-    streamlines_file : str
-        Path to .tck streamlines file
+    tdi_file : str
+        Path to track density image (.mif or .nii.gz)
     background_file : str
         Path to background anatomical image (NIfTI)
     title : str
@@ -31,64 +30,33 @@ def plot_streamlines_on_image(
     from nilearn.image import new_img_like
     import matplotlib.pyplot as plt
     import os
-    from tractography.utils.read_tck import read_tck_file
 
-    # Read TCK file
-    streamlines_list = read_tck_file(streamlines_file)
+    # Load TDI image (convert from MIF if needed)
+    try:
+        # Try loading as MIF first
+        import mrtrix3
+
+        tdi_data, tdi_affine = mrtrix3.read_mrtrix(tdi_file)[:2]
+        tdi_img = nib.Nifti1Image(tdi_data, tdi_affine)
+    except:
+        # Fall back to NIfTI
+        tdi_img = nib.load(tdi_file)
 
     # Load background image
     bg_img = nib.load(background_file)
-    bg_data = bg_img.get_fdata()
-
-    # Create streamline density map
-    density = np.zeros(bg_img.shape[:3])
-
-    if strm:
-        # Get affine for coordinate transformation
-        affine = bg_img.affine
-        affine_inv = np.linalg.inv(affine)
-
-        for streamline in strm:
-            # Transform streamline to voxel coordinates
-            voxel_coords = np.dot(
-                affine_inv,
-                np.column_stack([streamline, np.ones(len(streamline))]).T,
-            )[:3].T
-            voxel_coords = np.round(voxel_coords).astype(int)
-
-            # Filter valid coordinates
-            valid = np.all(
-                (voxel_coords >= 0) & (voxel_coords < bg_img.shape[:3]), axis=1
-            )
-            voxel_coords = voxel_coords[valid]
-
-            # Add to density
-            for coord in voxel_coords:
-                density[tuple(coord)] += 1
-
-    # Normalize density
-    if density.max() > 0:
-        density = density / density.max()
-
-    # Create density image
-    density_img = new_img_like(bg_img, density)
 
     # Create plot
     display = plot_anat(bg_img, title=title, display_mode="ortho")
     display.add_contours(
-        density_img, levels=[0.3, 0.6, 0.9], colors=["blue", "cyan", "yellow"]
+        tdi_img, levels=[0.3, 0.6, 0.9], colors=["blue", "cyan", "yellow"]
     )
 
     # Save as SVG
-    out_file = "streamlines_on_image.svg"
+    out_file = "tdi_on_image.svg"
     display.savefig(out_file)
     plt.close()
 
     return os.path.abspath(out_file)
-
-
-# FOD and GMWM plotting functions have been removed as they require MIF format images.
-# The report now focuses on streamline visualizations with T1 and DWI background images.
 
 
 def create_html_report(
@@ -114,7 +82,7 @@ def create_html_report(
 
     def _get_html_text(subject_id, *args):
         to_embed = {"subject_id": subject_id}
-        plot_names = ["plot_streamlines_t1w", "plot_streamlines_dwi"]
+        plot_names = ["plot_tdi_t1w", "plot_tdi_dwi"]
 
         for idx, plot in enumerate(args):
             if plot is not None and idx < len(plot_names):
@@ -188,29 +156,43 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
         name="report_outputnode",
     )
 
+    # ===== Track Density Image (TDI) Computation =====
+
+    # Compute TDI with T1w as template
+    tdi_t1w = Node(
+        interface=ComputeTDI(),
+        name="tdi_t1w",
+    )
+    tdi_t1w.inputs.out_file = "tdi_t1w.mif"
+
+    # Compute TDI with DWI as template
+    tdi_dwi = Node(
+        interface=ComputeTDI(),
+        name="tdi_dwi",
+    )
+    tdi_dwi.inputs.out_file = "tdi_dwi.mif"
+
     # ===== Tractography Plotting Nodes =====
 
-    # Plot streamlines on T1
-    PlotStreamlinesT1 = Function(
-        input_names=["streamlines_file", "background_file", "title"],
+    # Plot TDI on T1w
+    PlotTDIT1W = Function(
+        input_names=["tdi_file", "background_file", "title"],
         output_names=["out_file"],
-        function=plot_streamlines_on_image,
+        function=plot_tdi_on_image,
     )
-    plot_streamlines_t1 = Node(PlotStreamlinesT1, name="plot_streamlines_t1")
-    plot_streamlines_t1.inputs.title = "Streamlines on T1w"
+    plot_tdi_t1w = Node(PlotTDIT1W, name="plot_tdi_t1w")
+    plot_tdi_t1w.inputs.title = "Track Density on T1w"
 
-    # Plot streamlines on DWI
-    PlotStreamlinesDWI = Function(
-        input_names=["streamlines_file", "background_file", "title"],
+    # Plot TDI on DWI
+    PlotTDIDWI = Function(
+        input_names=["tdi_file", "background_file", "title"],
         output_names=["out_file"],
-        function=plot_streamlines_on_image,
+        function=plot_tdi_on_image,
     )
-    plot_streamlines_dwi = Node(
-        PlotStreamlinesDWI, name="plot_streamlines_dwi"
-    )
-    plot_streamlines_dwi.inputs.title = "Streamlines on DWI"
+    plot_tdi_dwi = Node(PlotTDIDWI, name="plot_tdi_dwi")
+    plot_tdi_dwi.inputs.title = "Track Density on DWI"
 
-    # Create a Merge node to combine streamline plots
+    # Create a Merge node to combine TDI plots
     merge_node = Node(Merge(2), name="merge_node")
 
     # embed plots in a html template
@@ -235,28 +217,59 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
     workflow = Workflow(name=name, base_dir=output_dir)
     workflow.connect(
         [
-            # ===== Streamline Plotting Connections =====
-            # Plot streamlines on T1
+            # ===== TDI Computation Connections =====
+            # Compute TDI with T1w as reference template
             (
                 inputnode,
-                plot_streamlines_t1,
+                tdi_t1w,
                 [
-                    ("streamlines", "streamlines_file"),
+                    ("streamlines", "in_file"),
+                    ("t1w", "reference"),
+                ],
+            ),
+            # Compute TDI with DWI as reference template
+            (
+                inputnode,
+                tdi_dwi,
+                [
+                    ("streamlines", "in_file"),
+                    ("dwi", "reference"),
+                ],
+            ),
+            # ===== TDI Plotting Connections =====
+            # Plot TDI on T1w
+            (
+                tdi_t1w,
+                plot_tdi_t1w,
+                [
+                    ("out_file", "tdi_file"),
+                ],
+            ),
+            (
+                inputnode,
+                plot_tdi_t1w,
+                [
                     ("t1w", "background_file"),
                 ],
             ),
-            # Plot streamlines on DWI
+            # Plot TDI on DWI
+            (
+                tdi_dwi,
+                plot_tdi_dwi,
+                [
+                    ("out_file", "tdi_file"),
+                ],
+            ),
             (
                 inputnode,
-                plot_streamlines_dwi,
+                plot_tdi_dwi,
                 [
-                    ("streamlines", "streamlines_file"),
                     ("dwi", "background_file"),
                 ],
             ),
-            # Add streamline plots to merge node
-            (plot_streamlines_t1, merge_node, [("out_file", "in1")]),
-            (plot_streamlines_dwi, merge_node, [("out_file", "in2")]),
+            # Add TDI plots to merge node
+            (plot_tdi_t1w, merge_node, [("out_file", "in1")]),
+            (plot_tdi_dwi, merge_node, [("out_file", "in2")]),
             # input the bids_entities
             (inputnode, create_html, [("bids_entities", "bids_entities")]),
             # create the html report
