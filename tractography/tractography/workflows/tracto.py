@@ -87,12 +87,6 @@ def _set_inputs_outputs(config, tracto_wf):
     bidsdata_wf = init_bidsdata_wf(config=config)
     # outputs
     sink_wf = init_sink_wf(config=config)
-    # report
-    report_wf = init_report_wf(
-        calling_wf_name="diffusion_tractography",
-        output_dir=config.output_dir,
-        name="report",
-    )
     # create the full workflow
     tracto_wf.connect(
         [
