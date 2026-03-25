@@ -119,5 +119,13 @@ def get_parser():
         default=False,
         help="Use GPU acceleration.",
     )
+    g_other.add_argument(
+        "-n",
+        "--n-threads",
+        action="store",
+        type=int,
+        default=1,
+        help="Number of threads to use for tractography (tckgen). Default: 1",
+    )
 
     return parser
