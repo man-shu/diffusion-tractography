@@ -340,16 +340,16 @@ def _tracto_wf(
             # Connect tractography outputs to report
             (
                 input_subject,
-                report.get_node("report_inputnode"),
-                [("bids_entities", "bids_entities")],
+                report,
+                [("bids_entities", "report_inputnode.bids_entities")],
             ),
             (
                 output_subject,
-                report.get_node("report_inputnode"),
+                report,
                 [
-                    ("streamlines", "streamlines"),
-                    ("wm_fod", "wm_fod"),
-                    ("gmwm_boundary", "gmwm_boundary"),
+                    ("streamlines", "report_inputnode.streamlines"),
+                    ("wm_fod", "report_inputnode.wm_fod"),
+                    ("gmwm_boundary", "report_inputnode.gmwm_boundary"),
                 ],
             ),
         ]
