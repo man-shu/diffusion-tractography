@@ -26,7 +26,7 @@ from .report import init_report_wf
 
 # Custom Generate5tt interface with proper lut_file positioning
 class Generate5ttWithLUT(MRTrix3Base):
-    """Generate5tt with LUT file support using explicit input/output specs."""
+    """Generate5tt with LUT file support using explicit command line building."""
 
     class input_spec(Generate5ttInputSpec):
         # Add lut_file as an optional parameter
@@ -46,6 +46,34 @@ class Generate5ttWithLUT(MRTrix3Base):
         outputs = self.output_spec().get()
         outputs["out_file"] = op.abspath(self.inputs.out_file)
         return outputs
+
+    @property
+    def cmdline(self):
+        """Manually build the command line with correct argument ordering.
+
+        Order should be: 5ttgen algorithm [-lut lut.txt] input.mif output.mif
+        """
+        from nipype.utils.filemanip import fname_presuffix
+        import os.path as op
+
+        cmd_parts = [self._cmd]
+
+        # 1. Add algorithm (mandatory positional)
+        cmd_parts.append(str(self.inputs.algorithm))
+
+        # 2. Add lut_file if provided (optional flag)
+        if isdefined(self.inputs.lut_file):
+            cmd_parts.append("-lut")
+            cmd_parts.append(str(self.inputs.lut_file))
+
+        # 3. Add in_file (mandatory positional)
+        cmd_parts.append(str(self.inputs.in_file))
+
+        # 4. Add out_file (mandatory positional)
+        cmd_parts.append(str(self.inputs.out_file))
+
+        cmdline = " ".join(cmd_parts)
+        return cmdline
 
 
 def init_tracto_wf(output_dir=".", config=None):
