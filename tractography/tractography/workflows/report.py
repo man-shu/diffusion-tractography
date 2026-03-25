@@ -26,7 +26,7 @@ def plot_tdi_on_image(tdi_file, background_file, title="Track Density"):
     """
     import nibabel as nib
     import numpy as np
-    from nilearn.plotting import plot_anat
+    from nilearn.plotting import plot_stat_map
     from nilearn.image import new_img_like
     import matplotlib.pyplot as plt
     import os
