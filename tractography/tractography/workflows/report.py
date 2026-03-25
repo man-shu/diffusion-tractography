@@ -43,12 +43,12 @@ def plot_streamlines_on_image(
     # Create streamline density map
     density = np.zeros(bg_img.shape[:3])
 
-    if streamlines_list:
+    if strm:
         # Get affine for coordinate transformation
         affine = bg_img.affine
         affine_inv = np.linalg.inv(affine)
 
-        for streamline in streamlines_list:
+        for streamline in strm:
             # Transform streamline to voxel coordinates
             voxel_coords = np.dot(
                 affine_inv,
@@ -81,7 +81,7 @@ def plot_streamlines_on_image(
 
     # Save as SVG
     out_file = "streamlines_on_image.svg"
-    display.savefig(out_file, format="svg")
+    display.savefig(out_file)
     plt.close()
 
     return os.path.abspath(out_file)
