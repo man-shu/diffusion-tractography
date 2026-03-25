@@ -31,24 +31,19 @@ def plot_tdi_on_image(tdi_file, background_file, title="Track Density"):
     import matplotlib.pyplot as plt
     import os
 
-    # Load TDI image (convert from MIF if needed)
-    try:
-        # Try loading as MIF first
-        import mrtrix3
-
-        tdi_data, tdi_affine = mrtrix3.read_mrtrix(tdi_file)[:2]
-        tdi_img = nib.Nifti1Image(tdi_data, tdi_affine)
-    except:
-        # Fall back to NIfTI
-        tdi_img = nib.load(tdi_file)
+    # Load TDI image
+    tdi_img = nib.load(tdi_file)
 
     # Load background image
     bg_img = nib.load(background_file)
 
     # Create plot
-    display = plot_anat(bg_img, title=title, display_mode="ortho")
-    display.add_contours(
-        tdi_img, levels=[0.3, 0.6, 0.9], colors=["blue", "cyan", "yellow"]
+    display = plot_stat_map(
+        stat_map_img=tdi_img,
+        bg_img=bg_img,
+        title=title,
+        display_mode="mosaic",
+        colorbar=True,
     )
 
     # Save as SVG
@@ -163,14 +158,14 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
         interface=ComputeTDI(),
         name="tdi_t1w",
     )
-    tdi_t1w.inputs.out_file = "tdi_t1w.mif"
+    tdi_t1w.inputs.out_file = "tdi_t1w.nii.gz"
 
     # Compute TDI with DWI as template
     tdi_dwi = Node(
         interface=ComputeTDI(),
         name="tdi_dwi",
     )
-    tdi_dwi.inputs.out_file = "tdi_dwi.mif"
+    tdi_dwi.inputs.out_file = "tdi_dwi.nii.gz"
 
     # ===== Tractography Plotting Nodes =====
 
