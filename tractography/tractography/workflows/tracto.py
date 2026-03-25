@@ -127,16 +127,6 @@ def _set_inputs_outputs(config, tracto_wf):
                     ("t1_5tt", "diffusion_tractography.@t1_5tt"),
                 ],
             ),
-            (
-                tracto_wf.get_node("report"),
-                sink_wf.get_node("sink"),
-                [
-                    (
-                        "report_outputnode.out_file",
-                        "diffusion_tractography.@report",
-                    )
-                ],
-            ),
         ]
     )
     return tracto_wf
