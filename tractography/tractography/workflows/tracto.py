@@ -253,7 +253,6 @@ def _tracto_wf(
     tckgen.inputs.max_length = max_len  # Maximum length in mm
     tckgen.inputs.min_length = 10  # Minimum length in mm
     tckgen.inputs.cutoff = cutoff  # FOD amplitude cutoff
-    tckgen.inputs.use_rk4 = True  # Use 4th order Runge-Kutta integration
     tckgen.inputs.backtrack = True  # Allow backtracking
     tckgen.inputs.out_file = "streamlines.tck"
 
