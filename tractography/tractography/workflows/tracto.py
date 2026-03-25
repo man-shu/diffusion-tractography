@@ -87,6 +87,7 @@ def _set_inputs_outputs(config, tracto_wf):
     bidsdata_wf = init_bidsdata_wf(config=config)
     # outputs
     sink_wf = init_sink_wf(config=config)
+    breakpoint()
     # create the full workflow
     tracto_wf.connect(
         [
