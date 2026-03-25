@@ -103,16 +103,12 @@ def init_sink_wf(config, name="sink_wf"):
 
             if bids_entities.get("session"):
                 prefix = os.path.join(
-                    "derivatives",
-                    "diffusion-tractography",
                     "sub-" + bids_entities["subject"],
                     "ses-" + bids_entities["session"],
                     modality,
                 )
             else:
                 prefix = os.path.join(
-                    "derivatives",
-                    "diffusion-tractography",
                     "sub-" + bids_entities["subject"],
                     modality,
                 )

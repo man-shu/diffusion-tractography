@@ -123,24 +123,24 @@ def _set_inputs_outputs(config, tracto_wf):
             ),
             (
                 tracto_wf.get_node("output_subject"),
-                sink_wf,
+                sink_wf.get_node("sink"),
                 [
-                    ("streamlines", "sinkinputnode.streamlines"),
-                    ("wm_fod", "sinkinputnode.wm_fod"),
-                    ("gm_fod", "sinkinputnode.gm_fod"),
-                    ("csf_fod", "sinkinputnode.csf_fod"),
-                    ("gmwm_boundary", "sinkinputnode.gmwm_boundary"),
-                    ("t1_5tt", "sinkinputnode.t1_5tt"),
+                    ("streamlines", "diffusion_tractography.@streamlines"),
+                    ("wm_fod", "diffusion_tractography.@wm_fod"),
+                    ("gm_fod", "diffusion_tractography.@gm_fod"),
+                    ("csf_fod", "diffusion_tractography.@csf_fod"),
+                    ("gmwm_boundary", "diffusion_tractography.@gmwm_boundary"),
+                    ("t1_5tt", "diffusion_tractography.@t1_5tt"),
                 ],
             ),
-            # Connect tractography outputs to report
             (
-                tracto_wf.get_node("output_subject"),
-                report_wf.get_node("report_inputnode"),
+                tracto_wf.get_node("report"),
+                sink_wf.get_node("sink"),
                 [
-                    ("streamlines", "streamlines"),
-                    ("wm_fod", "wm_fod"),
-                    ("gmwm_boundary", "gmwm_boundary"),
+                    (
+                        "report_outputnode.out_file",
+                        "diffusion_tractography.@report",
+                    )
                 ],
             ),
         ]
@@ -271,6 +271,10 @@ def _tracto_wf(
         name="output_subject",
     )
 
+    report = init_report_wf(
+        name="report", calling_wf_name=name, output_dir=output_dir
+    )
+
     # Build workflow
     workflow = Workflow(name=name, base_dir=output_dir)
     workflow.connect(
@@ -338,6 +342,16 @@ def _tracto_wf(
             ),
             (gmwm_boundary, output_subject, [("mask_out", "gmwm_boundary")]),
             (generate5tt, output_subject, [("out_file", "t1_5tt")]),
+            # Connect tractography outputs to report
+            (
+                output_subject,
+                report.get_node("report_inputnode"),
+                [
+                    ("streamlines", "streamlines"),
+                    ("wm_fod", "wm_fod"),
+                    ("gmwm_boundary", "gmwm_boundary"),
+                ],
+            ),
         ]
     )
 
