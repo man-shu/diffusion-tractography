@@ -55,7 +55,7 @@ def init_sink_wf(config, name="sink_wf"):
             ),
             (
                 "t1_5tt.mif",
-                f"{bids_name}_space-T1_desc-5tissue+segmentation_space.mif",
+                f"{bids_name}_space-T1_desc-5tissuetype_segmentation.mif",
             ),
             (
                 f"{bids_name}_report.html",
