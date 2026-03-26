@@ -22,12 +22,8 @@ def init_sink_wf(config, name="sink_wf", parcellation_file=None, n_streamlines=1
     def _format_streamlines(n):
         if n >= 1_000_000 and n % 1_000_000 == 0:
             return f"{n // 1_000_000}M"
-        if n >= 1_000_000:
-            return f"{n / 1_000_000:.1f}M"
         if n >= 1_000 and n % 1_000 == 0:
             return f"{n // 1_000}K"
-        if n >= 1_000:
-            return f"{n / 1_000:.1f}K"
         return str(n)
 
     n_streamlines_label = _format_streamlines(n_streamlines)
