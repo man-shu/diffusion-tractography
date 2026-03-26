@@ -74,7 +74,7 @@ def plot_connectome_heatmap(connectome_file, title="Structural Connectome"):
     import matplotlib.pyplot as plt
     import os
 
-    matrix = np.loadtxt(connectome_file)
+    matrix = np.loadtxt(connectome_file, delimiter=",")
 
     # Log-scale for better dynamic range visualisation (zeros stay zero)
     matrix_log = np.log1p(matrix)
