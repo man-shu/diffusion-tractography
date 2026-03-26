@@ -13,6 +13,7 @@ from nipype.interfaces.mrtrix3 import (
     Generate5tt2gmwmi,
     Tractography as MRTrix3Tractography,
 )
+from nipype.interfaces.mrtrix3.connectivity import BuildConnectome
 from nipype.interfaces.mrtrix3.tracking import (
     TractographyInputSpec,
     TractographyOutputSpec,
@@ -124,6 +125,11 @@ def _set_inputs_outputs(config, tracto_wf):
     # outputs
     sink_wf = init_sink_wf(config=config)
     # create the full workflow
+    if config and getattr(config, "parcellation_file", None):
+        tracto_wf.get_node("input_subject").inputs.parcellation_file = str(
+            config.parcellation_file
+        )
+
     tracto_wf.connect(
         [
             (
@@ -139,6 +145,7 @@ def _set_inputs_outputs(config, tracto_wf):
                     ("output.bval", "bval"),
                     ("output.rotated_bvec", "rotated_bvec"),
                     ("output.t1_dseg", "t1_dseg"),
+                    ("output.space2t1w_xfm", "space2t1w_xfm"),
                     ("decode_entities.bids_entities", "bids_entities"),
                 ],
             ),
@@ -163,6 +170,17 @@ def _set_inputs_outputs(config, tracto_wf):
                     ("gmwm_boundary", "diffusion_tractography.@gmwm_boundary"),
                     ("t1_5tt", "diffusion_tractography.@t1_5tt"),
                 ],
+            ),
+            *(
+                [
+                    (
+                        tracto_wf.get_node("output_subject"),
+                        sink_wf.get_node("sink"),
+                        [("connectome", "diffusion_tractography.@connectome")],
+                    )
+                ]
+                if config and getattr(config, "parcellation_file", None)
+                else []
             ),
             (
                 tracto_wf.get_node("report"),
@@ -216,6 +234,8 @@ def _tracto_wf(
                 "preprocessed_t1",
                 "bids_entities",
                 "t1_dseg",
+                "space2t1w_xfm",
+                "parcellation_file",
             ],
         ),
         name="input_subject",
@@ -296,6 +316,28 @@ def _tracto_wf(
     ):
         tckgen.inputs.nthreads = 30
 
+    # ===== Connectome Nodes (optional — only when parcellation_file is provided) =====
+
+    has_parcellation = config and getattr(config, "parcellation_file", None)
+
+    if has_parcellation:
+        # Register parcellation from standard space to T1w space
+        # NearestNeighbor interpolation preserves integer label values
+        apply_transform_parc = Node(
+            interface=ants.ApplyTransforms(),
+            name="apply_transform_parc",
+        )
+        apply_transform_parc.inputs.interpolation = "NearestNeighbor"
+        apply_transform_parc.inputs.output_image = "parcellation_t1w.nii.gz"
+        apply_transform_parc.inputs.input_image_type = 0  # scalar / label image
+
+        # Compute structural connectome from streamlines and parcellation
+        tck2connectome = Node(
+            interface=BuildConnectome(),
+            name="tck2connectome",
+        )
+        tck2connectome.inputs.out_file = "connectome.csv"
+
     # ===== Output Node =====
     output_subject = Node(
         IdentityInterface(
@@ -306,6 +348,7 @@ def _tracto_wf(
                 "csf_fod",
                 "gmwm_boundary",
                 "t1_5tt",
+                *(["connectome"] if has_parcellation else []),
             ],
         ),
         name="output_subject",
@@ -388,6 +431,40 @@ def _tracto_wf(
                 report,
                 [("bids_entities", "report_inputnode.bids_entities")],
             ),
+        ]
+    )
+
+    if has_parcellation:
+        workflow.connect(
+            [
+                # Transform parcellation from standard space to T1w space
+                (
+                    input_subject,
+                    apply_transform_parc,
+                    [
+                        ("parcellation_file", "input_image"),
+                        ("preprocessed_t1", "reference_image"),
+                        ("space2t1w_xfm", "transforms"),
+                    ],
+                ),
+                # Compute connectome from streamlines and T1w-space parcellation
+                (tckgen, tck2connectome, [("out_file", "in_file")]),
+                (
+                    apply_transform_parc,
+                    tck2connectome,
+                    [("output_image", "in_parc")],
+                ),
+                # Collect connectome output
+                (
+                    tck2connectome,
+                    output_subject,
+                    [("out_file", "connectome")],
+                ),
+            ]
+        )
+
+    workflow.connect(
+        [
             (
                 output_subject,
                 report,

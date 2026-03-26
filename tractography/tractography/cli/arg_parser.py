@@ -127,5 +127,16 @@ def get_parser():
         default=1,
         help="Number of threads to use for tractography (tckgen). Default: 1",
     )
+    g_other.add_argument(
+        "--parcellation-file",
+        "--parcellation_file",
+        action="store",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Path to a parcellation/atlas NIfTI file in standard space. "
+        "When provided, the parcellation will be registered to T1w space "
+        "and a structural connectome will be computed via tck2connectome.",
+    )
 
     return parser
