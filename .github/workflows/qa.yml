@@ -1,9 +1,8 @@
 name: QA Pipeline Test
 
 on:
-  workflow_run:
-    workflows: ["Docker build"]
-    types: [completed]
+  push:
+    branches: ["main"]
 
 env:
   REGISTRY: ghcr.io
@@ -11,10 +10,8 @@ env:
 
 jobs:
   run-qa:
-    # Only run when the Docker build succeeded AND the commit message contains [qa]
-    if: |
-      github.event.workflow_run.conclusion == 'success' &&
-      contains(github.event.workflow_run.head_commit.message, '[qa]')
+    # Only run when the commit message contains [qa]
+    if: contains(github.event.head_commit.message, '[qa]')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -23,7 +20,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
           lfs: true
 
       - name: Log into registry ${{ env.REGISTRY }}
@@ -35,14 +31,14 @@ jobs:
 
       - name: Pull Docker image
         run: |
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.workflow_run.head_branch }}
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main
 
       - name: Run tractography pipeline on downsampled test data
         run: |
           docker run --rm \
             -v ${{ github.workspace }}/data:/data \
             -v /tmp/work:/work \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.workflow_run.head_branch }} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main \
             /data/WAND-downsampled \
             /data/WAND-downsampled/derivatives \
             --participant-label 00395 \
@@ -59,7 +55,7 @@ jobs:
         run: |
           OUTPUT_DIR="${{ github.workspace }}/data/WAND-downsampled/derivatives/diffusion_tractography"
           sudo apt-get install -y tree -qq
-          tree -H '.' -T 'QA Output — ${{ github.event.workflow_run.head_sha }}' \
+          tree -H '.' -T 'QA Output — ${{ github.sha }}' \
             --nolinks "$OUTPUT_DIR" \
             -o "$OUTPUT_DIR/index.html" || true
 
@@ -69,19 +65,19 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ${{ github.workspace }}/data/WAND-downsampled/derivatives/diffusion_tractography
-          destination_dir: qa-output/${{ github.event.workflow_run.head_sha }}
+          destination_dir: qa-output/${{ github.sha }}
           keep_files: true
 
       - name: Print GitHub Pages URL
         if: always()
         run: |
           echo "QA output published at:"
-          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/qa-output/${{ github.event.workflow_run.head_sha }}/"
+          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/qa-output/${{ github.sha }}/"
 
       - name: Upload pipeline outputs as artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: qa-output-${{ github.event.workflow_run.head_sha }}
+          name: qa-output-${{ github.sha }}
           path: ${{ github.workspace }}/data/WAND-downsampled/derivatives/diffusion_tractography
           retention-days: 7
