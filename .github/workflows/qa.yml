@@ -17,7 +17,7 @@ jobs:
       contains(github.event.workflow_run.head_commit.message, '[qa]')
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: read
     steps:
       - name: Checkout repository
@@ -53,6 +53,30 @@ jobs:
             --parcellation-file /data/schaefer2018_100parcels_7networks_5mm.nii.gz \
             --labels-file /data/Schaefer2018_100Parcels_7Networks_order.txt \
             --n-streamlines 10000
+
+      - name: Generate directory index
+        if: always()
+        run: |
+          OUTPUT_DIR="${{ github.workspace }}/data/WAND-downsampled/derivatives/diffusion_tractography"
+          sudo apt-get install -y tree -qq
+          tree -H '.' -T 'QA Output — ${{ github.event.workflow_run.head_sha }}' \
+            --nolinks "$OUTPUT_DIR" \
+            -o "$OUTPUT_DIR/index.html" || true
+
+      - name: Deploy output to GitHub Pages
+        if: always()
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ${{ github.workspace }}/data/WAND-downsampled/derivatives/diffusion_tractography
+          destination_dir: qa-output/${{ github.event.workflow_run.head_sha }}
+          keep_files: true
+
+      - name: Print GitHub Pages URL
+        if: always()
+        run: |
+          echo "QA output published at:"
+          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/qa-output/${{ github.event.workflow_run.head_sha }}/"
 
       - name: Upload pipeline outputs as artifact
         if: always()
