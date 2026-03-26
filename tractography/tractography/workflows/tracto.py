@@ -355,7 +355,10 @@ def _tracto_wf(
     )
 
     report = init_report_wf(
-        name="report", calling_wf_name=name, output_dir=output_dir
+        name="report",
+        calling_wf_name=name,
+        output_dir=output_dir,
+        has_connectome=bool(has_parcellation),
     )
 
     # Build workflow
@@ -459,6 +462,12 @@ def _tracto_wf(
                     tck2connectome,
                     output_subject,
                     [("out_file", "connectome")],
+                ),
+                # Forward connectome to report
+                (
+                    tck2connectome,
+                    report,
+                    [("out_file", "report_inputnode.connectome")],
                 ),
             ]
         )

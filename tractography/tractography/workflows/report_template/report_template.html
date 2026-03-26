@@ -188,6 +188,24 @@
             </div>
         </div>
 
+        <!-- Structural Connectome Section -->
+        <div class="section">
+            <h2>Structural Connectome</h2>
+            <p style="color: #666; margin-bottom: 20px;">
+                Region-to-region connectivity matrix derived from streamline counts.
+                Values are shown on a log scale (log(1 + count)) to reveal weaker connections.
+            </p>
+            <div class="grid-item">
+                <h4>Connectome Heatmap</h4>
+                <div class="plot-description">
+                    Each cell represents the number of streamlines connecting two parcellation regions.
+                </div>
+                <div class="plot-container">
+                    ${plot_connectome}
+                </div>
+            </div>
+        </div>
+
         <!-- Processing Details Section -->
         <div class="section">
             <h2>Processing Details</h2>

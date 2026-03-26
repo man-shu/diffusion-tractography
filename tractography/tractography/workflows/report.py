@@ -54,6 +54,46 @@ def plot_tdi_on_image(tdi_file, background_file, title="Track Density"):
     return os.path.abspath(out_file)
 
 
+def plot_connectome_heatmap(connectome_file, title="Structural Connectome"):
+    """Plot a connectome matrix as a heatmap using nilearn.
+
+    Parameters
+    ----------
+    connectome_file : str
+        Path to the connectome CSV produced by tck2connectome
+    title : str
+        Title for the plot
+
+    Returns
+    -------
+    out_file : str
+        Path to output SVG file
+    """
+    import numpy as np
+    from nilearn.plotting import plot_matrix
+    import matplotlib.pyplot as plt
+    import os
+
+    matrix = np.loadtxt(connectome_file)
+
+    # Log-scale for better dynamic range visualisation (zeros stay zero)
+    matrix_log = np.log1p(matrix)
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    plot_matrix(
+        matrix_log,
+        title=title,
+        axes=ax,
+        colorbar=True,
+    )
+
+    out_file = "connectome_heatmap.svg"
+    fig.savefig(out_file, format="svg", bbox_inches="tight")
+    plt.close(fig)
+
+    return os.path.abspath(out_file)
+
+
 def create_html_report(
     calling_wf_name,
     report_wf_name,
@@ -76,8 +116,14 @@ def create_html_report(
         return string_text
 
     def _get_html_text(subject_id, *args):
-        to_embed = {"subject_id": subject_id}
-        plot_names = ["plot_tdi_t1w"]
+        to_embed = {
+            "subject_id": subject_id,
+            "plot_connectome": (
+                "<p style='color:#999;font-style:italic;'>"
+                "Connectome not computed &mdash; no parcellation provided.</p>"
+            ),
+        }
+        plot_names = ["plot_tdi_t1w", "plot_connectome"]
 
         for idx, plot in enumerate(args):
             if plot is not None and idx < len(plot_names):
@@ -115,7 +161,7 @@ def create_html_report(
     return out_file
 
 
-def init_report_wf(calling_wf_name, output_dir, name="report"):
+def init_report_wf(calling_wf_name, output_dir, name="report", has_connectome=False):
     """Create a workflow to generate a report for the diffusion preprocessing
     pipeline.
 
@@ -141,6 +187,7 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
                 "bids_entities",
                 "streamlines",
                 "t1w",
+                *(["connectome"] if has_connectome else []),
             ]
         ),
         name="report_inputnode",
@@ -170,8 +217,18 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
     plot_tdi_t1w = Node(PlotTDIT1W, name="plot_tdi_t1w")
     plot_tdi_t1w.inputs.title = "Track Density on T1w"
 
-    # Create a Merge node to combine TDI plots
-    merge_node = Node(Merge(1), name="merge_node")
+    if has_connectome:
+        # Plot connectome as a heatmap
+        PlotConnectome = Function(
+            input_names=["connectome_file", "title"],
+            output_names=["out_file"],
+            function=plot_connectome_heatmap,
+        )
+        plot_connectome = Node(PlotConnectome, name="plot_connectome")
+        plot_connectome.inputs.title = "Structural Connectome"
+
+    # Create a Merge node to collect all plots
+    merge_node = Node(Merge(2 if has_connectome else 1), name="merge_node")
 
     # embed plots in a html template
     CreateHTML = Function(
@@ -223,6 +280,23 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
             ),
             # Add TDI plot to merge node
             (plot_tdi_t1w, merge_node, [("out_file", "in1")]),
+        ]
+    )
+
+    if has_connectome:
+        workflow.connect(
+            [
+                (
+                    inputnode,
+                    plot_connectome,
+                    [("connectome", "connectome_file")],
+                ),
+                (plot_connectome, merge_node, [("out_file", "in2")]),
+            ]
+        )
+
+    workflow.connect(
+        [
             # input the bids_entities
             (inputnode, create_html, [("bids_entities", "bids_entities")]),
             # create the html report
