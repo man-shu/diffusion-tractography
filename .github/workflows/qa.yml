@@ -1,0 +1,87 @@
+name: QA Pipeline Test
+
+on:
+  workflow_run:
+    workflows: ["Docker build"]
+    types: [completed]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  run-qa:
+    # Only run when the Docker build succeeded AND the commit message contains [qa]
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      contains(github.event.workflow_run.head_commit.message, '[qa]')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          lfs: true
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull Docker image
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.workflow_run.head_branch }}
+
+      - name: Run tractography pipeline on downsampled test data
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}/data:/data \
+            -v /tmp/work:/work \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.workflow_run.head_branch }} \
+            /data/WAND-downsampled \
+            /data/WAND-downsampled/derivatives \
+            --participant-label 00395 \
+            --session-label 02 \
+            --bids-filter-file /data/bids_filter.json \
+            --work-dir /work \
+            --n-threads 2 \
+            --parcellation-file /data/schaefer2018_100parcels_7networks_5mm.nii.gz \
+            --labels-file /data/Schaefer2018_100Parcels_7Networks_order.txt \
+            --n-streamlines 10000
+
+      - name: Generate directory index
+        if: always()
+        run: |
+          OUTPUT_DIR="${{ github.workspace }}/data/WAND-downsampled/derivatives/diffusion_tractography"
+          sudo apt-get install -y tree -qq
+          tree -H '.' -T 'QA Output — ${{ github.event.workflow_run.head_sha }}' \
+            --nolinks "$OUTPUT_DIR" \
+            -o "$OUTPUT_DIR/index.html" || true
+
+      - name: Deploy output to GitHub Pages
+        if: always()
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ${{ github.workspace }}/data/WAND-downsampled/derivatives/diffusion_tractography
+          destination_dir: qa-output/${{ github.event.workflow_run.head_sha }}
+          keep_files: true
+
+      - name: Print GitHub Pages URL
+        if: always()
+        run: |
+          echo "QA output published at:"
+          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/qa-output/${{ github.event.workflow_run.head_sha }}/"
+
+      - name: Upload pipeline outputs as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-output-${{ github.event.workflow_run.head_sha }}
+          path: ${{ github.workspace }}/data/WAND-downsampled/derivatives/diffusion_tractography
+          retention-days: 7
