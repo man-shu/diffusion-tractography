@@ -114,7 +114,12 @@ class TractographyWithNThreads(MRTrix3Base):
 
 
 def init_tracto_wf(output_dir=".", config=None):
-    wf = _tracto_wf(output_dir=output_dir, config=config)
+    nstreamlines = (
+        config.n_streamlines
+        if config and getattr(config, "n_streamlines", None)
+        else 10000000
+    )
+    wf = _tracto_wf(output_dir=output_dir, config=config, nstreamlines=nstreamlines)
     wf = _set_inputs_outputs(config, wf)
     return wf
 

@@ -120,6 +120,14 @@ def get_parser():
         help="Use GPU acceleration.",
     )
     g_other.add_argument(
+        "--n-streamlines",
+        "--n_streamlines",
+        action="store",
+        type=int,
+        default=10000000,
+        help="Number of streamlines to generate with tckgen. Default: 10000000",
+    )
+    g_other.add_argument(
         "-n",
         "--n-threads",
         action="store",
