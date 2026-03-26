@@ -117,6 +117,10 @@ def plot_connectome_heatmap(connectome_file, title="Structural Connectome", labe
 
     matrix = np.loadtxt(connectome_file, delimiter=",")
 
+    # tck2connectome outputs an upper-triangular matrix; reflect it to lower
+    # by symmetrising (avoid doubling the diagonal values)
+    matrix = matrix + matrix.T - np.diag(np.diag(matrix))
+
     # Log-scale for better dynamic range visualisation (zeros stay zero)
     matrix_log = np.log1p(matrix)
 
