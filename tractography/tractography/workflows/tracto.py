@@ -473,7 +473,7 @@ def _tracto_wf(
                     output_subject,
                     [("out_file", "connectome")],
                 ),
-                # Forward connectome and labels to report
+                # Forward connectome, labels, and parcellation overlay to report
                 (
                     tck2connectome,
                     report,
@@ -483,6 +483,11 @@ def _tracto_wf(
                     input_subject,
                     report,
                     [("labels_file", "report_inputnode.labels_file")],
+                ),
+                (
+                    apply_transform_parc,
+                    report,
+                    [("output_image", "report_inputnode.parcellation_t1w")],
                 ),
             ]
         )

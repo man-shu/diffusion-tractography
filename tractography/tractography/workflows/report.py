@@ -54,6 +54,42 @@ def plot_tdi_on_image(tdi_file, background_file, title="Track Density"):
     return os.path.abspath(out_file)
 
 
+def plot_parcellation_on_t1w(parcellation_t1w, t1w_file, title="Parcellation on T1w"):
+    """Plot a parcellation image overlaid on a T1w image using nilearn.
+
+    Parameters
+    ----------
+    parcellation_t1w : str
+        Path to the parcellation NIfTI registered to T1w space
+    t1w_file : str
+        Path to the T1w background image (NIfTI)
+    title : str
+        Title for the plot
+
+    Returns
+    -------
+    out_file : str
+        Path to output SVG file
+    """
+    from nilearn.plotting import plot_roi
+    import matplotlib.pyplot as plt
+    import os
+
+    display = plot_roi(
+        roi_img=parcellation_t1w,
+        bg_img=t1w_file,
+        title=title,
+        display_mode="mosaic",
+        colorbar=True,
+    )
+
+    out_file = "parcellation_on_t1w.svg"
+    display.savefig(out_file)
+    plt.close()
+
+    return os.path.abspath(out_file)
+
+
 def plot_connectome_heatmap(connectome_file, title="Structural Connectome", labels_file=None):
     """Plot a connectome matrix as a heatmap using nilearn.
 
@@ -135,14 +171,16 @@ def create_html_report(
         return string_text
 
     def _get_html_text(subject_id, *args):
+        _not_available = (
+            "<p style='color:#999;font-style:italic;'>"
+            "Not available &mdash; no parcellation provided.</p>"
+        )
         to_embed = {
             "subject_id": subject_id,
-            "plot_connectome": (
-                "<p style='color:#999;font-style:italic;'>"
-                "Connectome not computed &mdash; no parcellation provided.</p>"
-            ),
+            "plot_connectome": _not_available,
+            "plot_parc_t1w": _not_available,
         }
-        plot_names = ["plot_tdi_t1w", "plot_connectome"]
+        plot_names = ["plot_tdi_t1w", "plot_connectome", "plot_parc_t1w"]
 
         for idx, plot in enumerate(args):
             if plot is not None and idx < len(plot_names):
@@ -206,7 +244,7 @@ def init_report_wf(calling_wf_name, output_dir, name="report", has_connectome=Fa
                 "bids_entities",
                 "streamlines",
                 "t1w",
-                *(["connectome", "labels_file"] if has_connectome else []),
+                *(["connectome", "labels_file", "parcellation_t1w"] if has_connectome else []),
             ]
         ),
         name="report_inputnode",
@@ -246,8 +284,17 @@ def init_report_wf(calling_wf_name, output_dir, name="report", has_connectome=Fa
         plot_connectome = Node(PlotConnectome, name="plot_connectome")
         plot_connectome.inputs.title = "Structural Connectome"
 
+        # Plot parcellation overlaid on T1w for registration QC
+        PlotParcT1W = Function(
+            input_names=["parcellation_t1w", "t1w_file", "title"],
+            output_names=["out_file"],
+            function=plot_parcellation_on_t1w,
+        )
+        plot_parc_t1w = Node(PlotParcT1W, name="plot_parc_t1w")
+        plot_parc_t1w.inputs.title = "Parcellation Registration QC"
+
     # Create a Merge node to collect all plots
-    merge_node = Node(Merge(2 if has_connectome else 1), name="merge_node")
+    merge_node = Node(Merge(3 if has_connectome else 1), name="merge_node")
 
     # embed plots in a html template
     CreateHTML = Function(
@@ -314,6 +361,15 @@ def init_report_wf(calling_wf_name, output_dir, name="report", has_connectome=Fa
                     ],
                 ),
                 (plot_connectome, merge_node, [("out_file", "in2")]),
+                (
+                    inputnode,
+                    plot_parc_t1w,
+                    [
+                        ("parcellation_t1w", "parcellation_t1w"),
+                        ("t1w", "t1w_file"),
+                    ],
+                ),
+                (plot_parc_t1w, merge_node, [("out_file", "in3")]),
             ]
         )
 
