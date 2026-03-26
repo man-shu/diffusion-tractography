@@ -294,7 +294,7 @@ def _tracto_wf(
         and hasattr(config, "n_threads")
         and config.n_threads is not None
     ):
-        tckgen.inputs.nthreads = config.n_threads
+        tckgen.inputs.nthreads = 30
 
     # ===== Output Node =====
     output_subject = Node(

@@ -40,8 +40,12 @@ def _run_pipeline(config):
 
     # Run with MultiProc plugin using n_threads for parallelization
     n_procs = config.n_threads if hasattr(config, "n_threads") else 1
-    print(f"Running pipeline with {n_procs} thread(s).")
-    wf.run(plugin="MultiProc", plugin_args={"n_procs": n_procs})
+    if n_procs > 1:
+        print(f"Running pipeline with {n_procs} thread(s).")
+        wf.run(plugin="MultiProc", plugin_args={"n_procs": n_procs})
+    else:
+        print("Running pipeline with a single thread.")
+        wf.run()
 
 
 def main():
