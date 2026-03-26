@@ -37,11 +37,14 @@ def _run_pipeline(config):
         ),
         format="svg",
     )
-    if config.gpu:
-        print("Running with GPU acceleration.")
-        wf.run(plugin="MultiProc", plugin_args={"n_gpu_procs": 1})
+
+    # Run with MultiProc plugin using n_threads for parallelization
+    n_procs = config.n_threads if hasattr(config, "n_threads") else 1
+    if n_procs > 1:
+        print(f"Running pipeline with {n_procs} thread(s).")
+        wf.run(plugin="MultiProc", plugin_args={"n_procs": n_procs})
     else:
-        print("Running without GPU acceleration.")
+        print("Running pipeline with a single thread.")
         wf.run()
 
 

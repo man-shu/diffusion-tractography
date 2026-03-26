@@ -1,13 +1,181 @@
-from niworkflows.interfaces.reportlets.masks import SimpleShowMaskRPT
-from niworkflows.interfaces.reportlets.registration import (
-    SimpleBeforeAfterRPT as SimpleBeforeAfter,
-)
 from nipype.interfaces.utility.wrappers import Function
 from nipype import IdentityInterface, Node, Workflow, Merge
+from nipype.interfaces.mrtrix3.utils import ComputeTDI
 import os
 
 TEMPLATE_ROOT = os.path.join(os.path.dirname(__file__), "report_template")
 REPORT_TEMPLATE = os.path.join(TEMPLATE_ROOT, "report_template.html")
+
+
+def plot_tdi_on_image(tdi_file, background_file, title="Track Density"):
+    """Plot track density image overlaid on anatomical image.
+
+    Parameters
+    ----------
+    tdi_file : str
+        Path to track density image (.mif or .nii.gz)
+    background_file : str
+        Path to background anatomical image (NIfTI)
+    title : str
+        Title for the plot
+
+    Returns
+    -------
+    out_file : str
+        Path to output SVG file
+    """
+    import nibabel as nib
+    import numpy as np
+    from nilearn.plotting import plot_stat_map
+    from nilearn.image import new_img_like
+    import matplotlib.pyplot as plt
+    import os
+
+    # Load TDI image
+    tdi_img = nib.load(tdi_file)
+
+    # Load background image
+    bg_img = nib.load(background_file)
+
+    # Create plot
+    display = plot_stat_map(
+        stat_map_img=tdi_img,
+        bg_img=bg_img,
+        title=title,
+        display_mode="mosaic",
+        colorbar=True,
+    )
+
+    # Save as SVG
+    out_file = "tdi_on_image.svg"
+    display.savefig(out_file)
+    plt.close()
+
+    return os.path.abspath(out_file)
+
+
+def plot_parcellation_on_t1w(parcellation_t1w, t1w_file, title="Parcellation on T1w"):
+    """Plot a parcellation image overlaid on a T1w image using nilearn.
+
+    Parameters
+    ----------
+    parcellation_t1w : str
+        Path to the parcellation NIfTI registered to T1w space
+    t1w_file : str
+        Path to the T1w background image (NIfTI)
+    title : str
+        Title for the plot
+
+    Returns
+    -------
+    out_file : str
+        Path to output SVG file
+    """
+    from nilearn.plotting import plot_roi
+    import matplotlib.pyplot as plt
+    import os
+
+    display = plot_roi(
+        roi_img=parcellation_t1w,
+        bg_img=t1w_file,
+        title=title,
+        display_mode="mosaic",
+        colorbar=True,
+    )
+
+    out_file = "parcellation_on_t1w.svg"
+    display.savefig(out_file)
+    plt.close()
+
+    return os.path.abspath(out_file)
+
+
+def plot_connectome_heatmap(connectome_file, title="Structural Connectome", labels_file=None):
+    """Plot the lower-triangular connectome matrix as a seaborn heatmap.
+
+    Parameters
+    ----------
+    connectome_file : str
+        Path to the connectome CSV produced by tck2connectome
+    title : str
+        Title for the plot
+    labels_file : str or None
+        Path to a region labels file (e.g. Schaefer LUT .txt).
+        Expected format: tab-separated with index in column 0 and
+        region name in column 1. When provided, region names are used
+        as tick labels on the heatmap axes.
+
+    Returns
+    -------
+    out_file : str
+        Path to output SVG file
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    import os
+
+    matrix = np.loadtxt(connectome_file, delimiter=",")
+
+    # tck2connectome outputs an upper-triangular matrix; reflect it to lower
+    # by symmetrising (avoid doubling the diagonal values)
+    matrix = matrix + matrix.T - np.diag(np.diag(matrix))
+
+    # Log-scale for better dynamic range visualisation (zeros stay zero)
+    matrix_log = np.log1p(matrix)
+
+    # Parse region labels when a labels file is provided
+    labels = None
+    if labels_file is not None:
+        labels = []
+        with open(labels_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split()
+                # LUT format: index name [R G B alpha]
+                labels.append(parts[1] if len(parts) >= 2 else parts[0])
+
+    # Mask the strictly upper triangle so only the lower triangle + diagonal
+    # are filled, matching the style of a standard connectome visualisation
+    mask = np.zeros_like(matrix_log, dtype=bool)
+    mask[np.triu_indices_from(mask, k=1)] = True
+
+    n = matrix_log.shape[0]
+    # Scale figure size with number of regions to avoid label crowding
+    fig_size = max(11, n * 0.18)
+    fontsize = max(6, min(10, 120 // n))
+
+    fig, ax = plt.subplots(figsize=(fig_size, fig_size * 0.9))
+
+    sns.heatmap(
+        matrix_log,
+        mask=mask,
+        cmap="viridis",
+        square=True,
+        linewidths=0,
+        cbar_kws={"shrink": 0.5, "label": "log(1 + streamline count)"},
+        ax=ax,
+        xticklabels=labels if labels is not None else False,
+        yticklabels=labels if labels is not None else False,
+    )
+
+    if labels is not None:
+        ax.set_xticklabels(
+            ax.get_xticklabels(), rotation=40, ha="right", fontsize=fontsize
+        )
+        ax.set_yticklabels(
+            ax.get_yticklabels(), rotation=0, fontsize=fontsize
+        )
+
+    ax.set_title(title, fontsize=fontsize + 2)
+
+    out_file = "connectome_heatmap.svg"
+    fig.savefig(out_file, format="svg", bbox_inches="tight")
+    plt.close(fig)
+
+    return os.path.abspath(out_file)
 
 
 def create_html_report(
@@ -21,7 +189,6 @@ def create_html_report(
     import os
     import string
     from nilearn.plotting.html_document import HTMLDocument
-    import base64
 
     def _embed_svg(to_embed, template_path=template_path):
         with open(template_path) as f:
@@ -33,23 +200,24 @@ def create_html_report(
         return string_text
 
     def _get_html_text(subject_id, *args):
-        to_embed = {"subject_id": subject_id}
-        recon_plots = {
-            "T1w.svg": "plot_recon_surface_on_t1",
-            "dseg.svg": "plot_recon_segmentations_on_t1",
+        _not_available = (
+            "<p style='color:#999;font-style:italic;'>"
+            "Not available &mdash; no parcellation provided.</p>"
+        )
+        to_embed = {
+            "subject_id": subject_id,
+            "plot_connectome": _not_available,
+            "plot_parc_t1w": _not_available,
         }
-        for plot in args:
-            if plot is not None:
+        plot_names = ["plot_tdi_t1w", "plot_connectome", "plot_parc_t1w"]
+
+        for idx, plot in enumerate(args):
+            if plot is not None and idx < len(plot_names):
                 with open(plot, "r", encoding="utf-8") as f:
                     svg_text = f.read()
                 f.close()
-                # get the plot name from the path
-                if "smriprep" in plot:
-                    suffix = plot.split(os.path.sep)[-1].split("_")[-1]
-                    plot_name = recon_plots[suffix]
-                else:
-                    plot_name = plot.split(os.path.sep)[-2]
-                to_embed[plot_name] = svg_text
+                to_embed[plot_names[idx]] = svg_text
+
         return _embed_svg(to_embed)
 
     def _build_bids(bids_entities):
@@ -79,17 +247,19 @@ def create_html_report(
     return out_file
 
 
-def init_report_wf(calling_wf_name, output_dir, name="report"):
+def init_report_wf(calling_wf_name, output_dir, name="report", has_connectome=False):
     """Create a workflow to generate a report for the diffusion preprocessing
     pipeline.
 
     Parameters
     ----------
-    name : str, optional, by default "report"
-        Name of the workflow
-    output_dir : str, optional, by default "."
+    calling_wf_name : str
+        Name of the calling workflow
+    output_dir : str
         Base directory to store the reports. The workflow will create a
         subdirectory called 'report' in this directory to store the reports.
+    name : str, optional, by default "report"
+        Name of the workflow
 
     Returns
     -------
@@ -100,24 +270,10 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
     inputnode = Node(
         IdentityInterface(
             fields=[
-                "dwi_initial",
-                "dwi_masked",
-                "bval",
-                "eddy_corrected",
-                "mask",
-                "bet_mask",
-                "dwi_rigid_registered",
-                "t1_initial",
-                "t1_masked",
                 "bids_entities",
-                "plot_recon_surface_on_t1",
-                "plot_recon_segmentations_on_t1",
-                "initial_mean_bzero",
-                "eddy_mean_bzero",
-                "registered_mean_bzero",
-                "ribbon_mask",
-                "mppca_denoised",
-                "gibbs_unringed_denoised",
+                "streamlines",
+                "t1w",
+                *(["connectome", "labels_file", "parcellation_t1w"] if has_connectome else []),
             ]
         ),
         name="report_inputnode",
@@ -126,84 +282,48 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
         IdentityInterface(fields=["out_file"]),
         name="report_outputnode",
     )
-    # MPPCA
-    plot_before_after_mppca = Node(
-        SimpleBeforeAfter(), name="plot_before_after_mppca"
-    )
-    plot_before_after_mppca.inputs.before_label = "Before MP-PCA (Initial DWI)"
-    plot_before_after_mppca.inputs.after_label = "After MP-PCA"
 
-    # Gibbs Unringing
-    plot_before_after_gibbs = Node(
-        SimpleBeforeAfter(), name="plot_before_after_gibbs"
-    )
-    plot_before_after_gibbs.inputs.before_label = (
-        "Before Gibbs Unringing (MP-PCA Denoised)"
-    )
-    plot_before_after_gibbs.inputs.after_label = "After Gibbs Unringing"
+    # ===== Track Density Image (TDI) Computation =====
 
-    # this node plots the before and after images of the eddy correction
-    plot_before_after_eddy = Node(
-        SimpleBeforeAfter(), name="plot_before_after_eddy"
+    # Compute TDI with T1w as template
+    tdi_t1w = Node(
+        interface=ComputeTDI(),
+        name="tdi_t1w",
     )
-    # set labels for the before and after images
-    plot_before_after_eddy.inputs.before_label = (
-        "Before Eddy Correction (Gibbs Unringed + MP-PCA Denoised)"
-    )
-    plot_before_after_eddy.inputs.after_label = "Eddy Corrected DWI"
-    # this node plots before and after images of masking T1 template
-    plot_before_after_mask_t1 = Node(
-        SimpleBeforeAfter(), name="plot_before_after_mask_t1"
-    )
-    # set labels for the before and after images
-    plot_before_after_mask_t1.inputs.before_label = "Subject T1"
-    plot_before_after_mask_t1.inputs.after_label = "Masked Subject T1"
-    # this node plots the masked subject T1 as before and the dwi registered
-    # to it as after
-    plot_before_after_t1_dwi = Node(
-        SimpleBeforeAfter(), name="plot_before_after_t1_dwi"
-    )
-    # set labels for the before and after images
-    plot_before_after_t1_dwi.inputs.before_label = "Masked Subject T1"
-    plot_before_after_t1_dwi.inputs.after_label = "Registered DWI"
-    # this node plots the extracted brain mask as outline on the initial dwi
-    # image
-    plot_bet = Node(SimpleShowMaskRPT(), name="plot_bet")
-    # this node plots the transformed mask as an outline on transformed dwi
-    # image
-    plot_transformed = Node(SimpleShowMaskRPT(), name="plot_transformed")
+    tdi_t1w.inputs.out_file = "tdi_t1w.nii.gz"
 
-    def ribbon_on_dwi(dwi_file, ribbon_mask):
-        import nibabel as nib
-        from niworkflows.viz.utils import (
-            compose_view,
-            cuts_from_bbox,
-            plot_registration,
-        )
+    # ===== Tractography Plotting Nodes =====
 
-        dwi_img = nib.load(dwi_file)
-        ribbon_img = nib.load(ribbon_mask)
-        svg = plot_registration(
-            dwi_img,
-            "Ribbon mask on DWI",
-            estimate_brightness=True,
-            cuts=cuts_from_bbox(ribbon_img, cuts=7),
-            contour=ribbon_img,
-        )
-        out_file = compose_view(svg, [], out_file="ribbon_on_dwi.svg")
-
-        return out_file
-
-    RibbonOnDWI = Function(
-        input_names=["dwi_file", "ribbon_mask"],
+    # Plot TDI on T1w
+    PlotTDIT1W = Function(
+        input_names=["tdi_file", "background_file", "title"],
         output_names=["out_file"],
-        function=ribbon_on_dwi,
+        function=plot_tdi_on_image,
     )
-    plot_ribbon_on_dwi = Node(RibbonOnDWI, name="plot_ribbon_on_dwi")
+    plot_tdi_t1w = Node(PlotTDIT1W, name="plot_tdi_t1w")
+    plot_tdi_t1w.inputs.title = "Track Density on T1w"
 
-    # Create a Merge node to combine the outputs of plot_bet,
-    # plot_before_after_eddy, and plot_transformed
-    merge_node = Node(Merge(10), name="merge_node")
+    if has_connectome:
+        # Plot connectome as a heatmap
+        PlotConnectome = Function(
+            input_names=["connectome_file", "title", "labels_file"],
+            output_names=["out_file"],
+            function=plot_connectome_heatmap,
+        )
+        plot_connectome = Node(PlotConnectome, name="plot_connectome")
+        plot_connectome.inputs.title = "Structural Connectome"
+
+        # Plot parcellation overlaid on T1w for registration QC
+        PlotParcT1W = Function(
+            input_names=["parcellation_t1w", "t1w_file", "title"],
+            output_names=["out_file"],
+            function=plot_parcellation_on_t1w,
+        )
+        plot_parc_t1w = Node(PlotParcT1W, name="plot_parc_t1w")
+        plot_parc_t1w.inputs.title = "Parcellation Registration QC"
+
+    # Create a Merge node to collect all plots
+    merge_node = Node(Merge(3 if has_connectome else 1), name="merge_node")
 
     # embed plots in a html template
     CreateHTML = Function(
@@ -223,99 +343,67 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
     create_html.inputs.report_wf_name = name
     create_html.inputs.template_path = REPORT_TEMPLATE
     create_html.inputs.output_dir = output_dir
+
     workflow = Workflow(name=name, base_dir=output_dir)
     workflow.connect(
         [
-            # plot the extracted brain mask as outline on the initial dwi image
+            # ===== TDI Computation Connections =====
+            # Compute TDI with T1w as reference template
             (
                 inputnode,
-                plot_bet,
+                tdi_t1w,
                 [
-                    ("bet_mask", "mask_file"),
-                    ("dwi_initial", "background_file"),
+                    ("streamlines", "in_file"),
+                    ("t1w", "reference"),
+                ],
+            ),
+            # ===== TDI Plotting Connections =====
+            # Plot TDI on T1w
+            (
+                tdi_t1w,
+                plot_tdi_t1w,
+                [
+                    ("out_file", "tdi_file"),
                 ],
             ),
             (
                 inputnode,
-                plot_before_after_mppca,
-                [("initial_mean_bzero", "before")],
-            ),
-            (
-                inputnode,
-                plot_before_after_mppca,
-                [("mppca_denoised", "after")],
-            ),
-            (
-                inputnode,
-                plot_before_after_gibbs,
-                [("mppca_denoised", "before")],
-            ),
-            (
-                inputnode,
-                plot_before_after_gibbs,
-                [("gibbs_unringed_denoised", "after")],
-            ),
-            # plot the initial dwi as before
-            (
-                inputnode,
-                plot_before_after_eddy,
-                [("gibbs_unringed_denoised", "before")],
-            ),
-            # plot the eddy corrected dwi as after
-            (
-                inputnode,
-                plot_before_after_eddy,
-                [("eddy_mean_bzero", "after")],
-            ),
-            # plot the initial subject T1 as before
-            (inputnode, plot_before_after_mask_t1, [("t1_initial", "before")]),
-            # plot the masked subject T1 as after
-            (inputnode, plot_before_after_mask_t1, [("t1_masked", "after")]),
-            # plot the masked subject T1 as before and transformed dwi as
-            # after
-            (inputnode, plot_before_after_t1_dwi, [("t1_masked", "before")]),
-            (
-                inputnode,
-                plot_before_after_t1_dwi,
-                [("registered_mean_bzero", "after")],
-            ),
-            # plot the transformed mask as an outline on transformed dwi image
-            (
-                inputnode,
-                plot_transformed,
+                plot_tdi_t1w,
                 [
-                    ("dwi_rigid_registered", "background_file"),
-                    ("mask", "mask_file"),
+                    ("t1w", "background_file"),
                 ],
             ),
-            (
-                inputnode,
-                plot_ribbon_on_dwi,
-                [
-                    ("registered_mean_bzero", "dwi_file"),
-                    ("ribbon_mask", "ribbon_mask"),
-                ],
-            ),
-            # merge the outputs of plot_bet, plot_before_after_eddy,
-            # plot_before_after_mask_t1, plot_transformed
-            (plot_bet, merge_node, [("out_report", "in1")]),
-            (plot_before_after_eddy, merge_node, [("out_report", "in2")]),
-            (plot_before_after_mask_t1, merge_node, [("out_report", "in3")]),
-            (plot_before_after_t1_dwi, merge_node, [("out_report", "in4")]),
-            (plot_transformed, merge_node, [("out_report", "in5")]),
-            (
-                inputnode,
-                merge_node,
-                [("plot_recon_surface_on_t1", "in6")],
-            ),
-            (
-                inputnode,
-                merge_node,
-                [("plot_recon_segmentations_on_t1", "in7")],
-            ),
-            (plot_ribbon_on_dwi, merge_node, [("out_file", "in8")]),
-            (plot_before_after_mppca, merge_node, [("out_report", "in9")]),
-            (plot_before_after_gibbs, merge_node, [("out_report", "in10")]),
+            # Add TDI plot to merge node
+            (plot_tdi_t1w, merge_node, [("out_file", "in1")]),
+        ]
+    )
+
+    if has_connectome:
+        workflow.connect(
+            [
+                (
+                    inputnode,
+                    plot_connectome,
+                    [
+                        ("connectome", "connectome_file"),
+                        ("labels_file", "labels_file"),
+                    ],
+                ),
+                (plot_connectome, merge_node, [("out_file", "in2")]),
+                (
+                    inputnode,
+                    plot_parc_t1w,
+                    [
+                        ("parcellation_t1w", "parcellation_t1w"),
+                        ("t1w", "t1w_file"),
+                    ],
+                ),
+                (plot_parc_t1w, merge_node, [("out_file", "in3")]),
+            ]
+        )
+
+    workflow.connect(
+        [
             # input the bids_entities
             (inputnode, create_html, [("bids_entities", "bids_entities")]),
             # create the html report
