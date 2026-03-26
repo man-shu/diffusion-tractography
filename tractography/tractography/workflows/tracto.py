@@ -400,7 +400,6 @@ def _tracto_wf(
                 report,
                 [
                     ("preprocessed_t1", "report_inputnode.t1w"),
-                    ("preprocessed_dwi", "report_inputnode.dwi"),
                 ],
             ),
         ]

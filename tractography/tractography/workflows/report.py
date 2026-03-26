@@ -77,7 +77,7 @@ def create_html_report(
 
     def _get_html_text(subject_id, *args):
         to_embed = {"subject_id": subject_id}
-        plot_names = ["plot_tdi_t1w", "plot_tdi_dwi"]
+        plot_names = ["plot_tdi_t1w"]
 
         for idx, plot in enumerate(args):
             if plot is not None and idx < len(plot_names):
@@ -141,7 +141,6 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
                 "bids_entities",
                 "streamlines",
                 "t1w",
-                "dwi",
             ]
         ),
         name="report_inputnode",
@@ -160,13 +159,6 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
     )
     tdi_t1w.inputs.out_file = "tdi_t1w.nii.gz"
 
-    # Compute TDI with DWI as template
-    tdi_dwi = Node(
-        interface=ComputeTDI(),
-        name="tdi_dwi",
-    )
-    tdi_dwi.inputs.out_file = "tdi_dwi.nii.gz"
-
     # ===== Tractography Plotting Nodes =====
 
     # Plot TDI on T1w
@@ -178,17 +170,8 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
     plot_tdi_t1w = Node(PlotTDIT1W, name="plot_tdi_t1w")
     plot_tdi_t1w.inputs.title = "Track Density on T1w"
 
-    # Plot TDI on DWI
-    PlotTDIDWI = Function(
-        input_names=["tdi_file", "background_file", "title"],
-        output_names=["out_file"],
-        function=plot_tdi_on_image,
-    )
-    plot_tdi_dwi = Node(PlotTDIDWI, name="plot_tdi_dwi")
-    plot_tdi_dwi.inputs.title = "Track Density on DWI"
-
     # Create a Merge node to combine TDI plots
-    merge_node = Node(Merge(2), name="merge_node")
+    merge_node = Node(Merge(1), name="merge_node")
 
     # embed plots in a html template
     CreateHTML = Function(
@@ -222,15 +205,6 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
                     ("t1w", "reference"),
                 ],
             ),
-            # Compute TDI with DWI as reference template
-            (
-                inputnode,
-                tdi_dwi,
-                [
-                    ("streamlines", "in_file"),
-                    ("dwi", "reference"),
-                ],
-            ),
             # ===== TDI Plotting Connections =====
             # Plot TDI on T1w
             (
@@ -247,24 +221,8 @@ def init_report_wf(calling_wf_name, output_dir, name="report"):
                     ("t1w", "background_file"),
                 ],
             ),
-            # Plot TDI on DWI
-            (
-                tdi_dwi,
-                plot_tdi_dwi,
-                [
-                    ("out_file", "tdi_file"),
-                ],
-            ),
-            (
-                inputnode,
-                plot_tdi_dwi,
-                [
-                    ("dwi", "background_file"),
-                ],
-            ),
-            # Add TDI plots to merge node
+            # Add TDI plot to merge node
             (plot_tdi_t1w, merge_node, [("out_file", "in1")]),
-            (plot_tdi_dwi, merge_node, [("out_file", "in2")]),
             # input the bids_entities
             (inputnode, create_html, [("bids_entities", "bids_entities")]),
             # create the html report
