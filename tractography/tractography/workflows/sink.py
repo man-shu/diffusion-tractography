@@ -3,15 +3,23 @@ from nipype.interfaces.utility import Function
 from nipype.interfaces.io import DataSink
 
 
-def init_sink_wf(config, name="sink_wf"):
+def init_sink_wf(config, name="sink_wf", parcellation_file=None):
 
     inputnode = Node(
         IdentityInterface(fields=["bids_entities"]),
         name="sinkinputnode",
     )
 
+    # Derive a BIDS-compatible atlas label from the parcellation filename stem
+    # e.g. schaefer2018_100parcels_7networks_5mm.nii.gz -> schaefer2018+100parcels+7networks+5mm
+    atlas_name = ""
+    if parcellation_file is not None:
+        from pathlib import Path as _Path
+        stem = _Path(parcellation_file).name.split(".")[0]
+        atlas_name = stem.replace("_", "+")
+
     ### build the full file name
-    def build_substitutions(bids_entities):
+    def build_substitutions(bids_entities, atlas_name=""):
 
         import os
         from pathlib import Path
@@ -63,6 +71,14 @@ def init_sink_wf(config, name="sink_wf"):
             ),
         ]
 
+        if atlas_name:
+            substitutions.append(
+                (
+                    "connectome.csv",
+                    f"{bids_name}_atlas-{atlas_name}_desc-iFOD2+ACT+10M_connectome.csv",
+                )
+            )
+
         # add root directory with derivatives/diffusion-tractography structure
         for i, (src, dst) in enumerate(substitutions):
 
@@ -85,11 +101,12 @@ def init_sink_wf(config, name="sink_wf"):
         return substitutions
 
     BuildSubstitutions = Function(
-        input_names=["bids_entities"],
+        input_names=["bids_entities", "atlas_name"],
         output_names=["substitutions"],
         function=build_substitutions,
     )
     build_substitutions = Node(BuildSubstitutions, name="build_substitutions")
+    build_substitutions.inputs.atlas_name = atlas_name
 
     ### DataSink node
     sink = Node(DataSink(), name="sink")

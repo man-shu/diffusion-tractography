@@ -123,7 +123,12 @@ def _set_inputs_outputs(config, tracto_wf):
     # bids dataset
     bidsdata_wf = init_bidsdata_wf(config=config)
     # outputs
-    sink_wf = init_sink_wf(config=config)
+    parcellation_file = (
+        str(config.parcellation_file)
+        if config and getattr(config, "parcellation_file", None)
+        else None
+    )
+    sink_wf = init_sink_wf(config=config, parcellation_file=parcellation_file)
     # create the full workflow
     if config and getattr(config, "parcellation_file", None):
         tracto_wf.get_node("input_subject").inputs.parcellation_file = str(
