@@ -3,7 +3,7 @@ from nipype.interfaces.utility import Function
 from nipype.interfaces.io import DataSink
 
 
-def init_sink_wf(config, name="sink_wf", parcellation_file=None):
+def init_sink_wf(config, name="sink_wf", parcellation_file=None, n_streamlines=10000000):
 
     inputnode = Node(
         IdentityInterface(fields=["bids_entities"]),
@@ -18,8 +18,22 @@ def init_sink_wf(config, name="sink_wf", parcellation_file=None):
         stem = _Path(parcellation_file).name.split(".")[0]
         atlas_name = stem.replace("_", "+")
 
+    # Format streamline count as a human-readable label (e.g. 10000000 -> "10M")
+    def _format_streamlines(n):
+        if n >= 1_000_000 and n % 1_000_000 == 0:
+            return f"{n // 1_000_000}M"
+        if n >= 1_000_000:
+            return f"{n / 1_000_000:.1f}M"
+        if n >= 1_000 and n % 1_000 == 0:
+            return f"{n // 1_000}K"
+        if n >= 1_000:
+            return f"{n / 1_000:.1f}K"
+        return str(n)
+
+    n_streamlines_label = _format_streamlines(n_streamlines)
+
     ### build the full file name
-    def build_substitutions(bids_entities, atlas_name=""):
+    def build_substitutions(bids_entities, atlas_name="", n_streamlines_label="10M"):
 
         import os
         from pathlib import Path
@@ -43,7 +57,7 @@ def init_sink_wf(config, name="sink_wf", parcellation_file=None):
         substitutions = [
             (
                 "streamlines.tck",
-                f"{bids_name}_space-T1_desc-iFOD2+ACT+10M_tractography.tck",
+                f"{bids_name}_space-T1_desc-iFOD2+ACT+{n_streamlines_label}_tractography.tck",
             ),
             (
                 "wm_fod.mif",
@@ -75,7 +89,7 @@ def init_sink_wf(config, name="sink_wf", parcellation_file=None):
             substitutions.append(
                 (
                     "connectome.csv",
-                    f"{bids_name}_atlas-{atlas_name}_desc-iFOD2+ACT+10M_connectome.csv",
+                    f"{bids_name}_atlas-{atlas_name}_desc-iFOD2+ACT+{n_streamlines_label}_connectome.csv",
                 )
             )
 
@@ -101,12 +115,13 @@ def init_sink_wf(config, name="sink_wf", parcellation_file=None):
         return substitutions
 
     BuildSubstitutions = Function(
-        input_names=["bids_entities", "atlas_name"],
+        input_names=["bids_entities", "atlas_name", "n_streamlines_label"],
         output_names=["substitutions"],
         function=build_substitutions,
     )
     build_substitutions = Node(BuildSubstitutions, name="build_substitutions")
     build_substitutions.inputs.atlas_name = atlas_name
+    build_substitutions.inputs.n_streamlines_label = n_streamlines_label
 
     ### DataSink node
     sink = Node(DataSink(), name="sink")

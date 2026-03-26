@@ -133,7 +133,16 @@ def _set_inputs_outputs(config, tracto_wf):
         if config and getattr(config, "parcellation_file", None)
         else None
     )
-    sink_wf = init_sink_wf(config=config, parcellation_file=parcellation_file)
+    n_streamlines = (
+        config.n_streamlines
+        if config and getattr(config, "n_streamlines", None)
+        else 10000000
+    )
+    sink_wf = init_sink_wf(
+        config=config,
+        parcellation_file=parcellation_file,
+        n_streamlines=n_streamlines,
+    )
     # create the full workflow
     if config and getattr(config, "parcellation_file", None):
         tracto_wf.get_node("input_subject").inputs.parcellation_file = str(
