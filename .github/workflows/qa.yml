@@ -51,7 +51,8 @@ jobs:
             --work-dir /work \
             --n-threads 2 \
             --parcellation-file /data/schaefer2018_100parcels_7networks_5mm.nii.gz \
-            --labels-file /data/Schaefer2018_100Parcels_7Networks_order.txt
+            --labels-file /data/Schaefer2018_100Parcels_7Networks_order.txt \
+            --n-streamlines 10000
 
       - name: Upload pipeline outputs as artifact
         if: always()
