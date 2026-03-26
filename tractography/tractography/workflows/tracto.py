@@ -134,6 +134,10 @@ def _set_inputs_outputs(config, tracto_wf):
         tracto_wf.get_node("input_subject").inputs.parcellation_file = str(
             config.parcellation_file
         )
+    if config and getattr(config, "labels_file", None):
+        tracto_wf.get_node("input_subject").inputs.labels_file = str(
+            config.labels_file
+        )
 
     tracto_wf.connect(
         [
@@ -241,6 +245,7 @@ def _tracto_wf(
                 "t1_dseg",
                 "space2t1w_xfm",
                 "parcellation_file",
+                "labels_file",
             ],
         ),
         name="input_subject",
@@ -468,11 +473,16 @@ def _tracto_wf(
                     output_subject,
                     [("out_file", "connectome")],
                 ),
-                # Forward connectome to report
+                # Forward connectome and labels to report
                 (
                     tck2connectome,
                     report,
                     [("out_file", "report_inputnode.connectome")],
+                ),
+                (
+                    input_subject,
+                    report,
+                    [("labels_file", "report_inputnode.labels_file")],
                 ),
             ]
         )

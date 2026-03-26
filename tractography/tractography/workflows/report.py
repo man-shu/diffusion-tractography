@@ -54,7 +54,7 @@ def plot_tdi_on_image(tdi_file, background_file, title="Track Density"):
     return os.path.abspath(out_file)
 
 
-def plot_connectome_heatmap(connectome_file, title="Structural Connectome"):
+def plot_connectome_heatmap(connectome_file, title="Structural Connectome", labels_file=None):
     """Plot a connectome matrix as a heatmap using nilearn.
 
     Parameters
@@ -63,6 +63,11 @@ def plot_connectome_heatmap(connectome_file, title="Structural Connectome"):
         Path to the connectome CSV produced by tck2connectome
     title : str
         Title for the plot
+    labels_file : str or None
+        Path to a region labels file (e.g. Schaefer LUT .txt).
+        Expected format: tab-separated with index in column 0 and
+        region name in column 1. When provided, region names are used
+        as tick labels on the heatmap axes.
 
     Returns
     -------
@@ -79,12 +84,26 @@ def plot_connectome_heatmap(connectome_file, title="Structural Connectome"):
     # Log-scale for better dynamic range visualisation (zeros stay zero)
     matrix_log = np.log1p(matrix)
 
+    # Parse region labels when a labels file is provided
+    labels = None
+    if labels_file is not None:
+        labels = []
+        with open(labels_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split()
+                # LUT format: index name [R G B alpha]
+                labels.append(parts[1] if len(parts) >= 2 else parts[0])
+
     fig, ax = plt.subplots(figsize=(10, 8))
     plot_matrix(
         matrix_log,
         title=title,
         axes=ax,
         colorbar=True,
+        labels=labels,
     )
 
     out_file = "connectome_heatmap.svg"
@@ -187,7 +206,7 @@ def init_report_wf(calling_wf_name, output_dir, name="report", has_connectome=Fa
                 "bids_entities",
                 "streamlines",
                 "t1w",
-                *(["connectome"] if has_connectome else []),
+                *(["connectome", "labels_file"] if has_connectome else []),
             ]
         ),
         name="report_inputnode",
@@ -220,7 +239,7 @@ def init_report_wf(calling_wf_name, output_dir, name="report", has_connectome=Fa
     if has_connectome:
         # Plot connectome as a heatmap
         PlotConnectome = Function(
-            input_names=["connectome_file", "title"],
+            input_names=["connectome_file", "title", "labels_file"],
             output_names=["out_file"],
             function=plot_connectome_heatmap,
         )
@@ -289,7 +308,10 @@ def init_report_wf(calling_wf_name, output_dir, name="report", has_connectome=Fa
                 (
                     inputnode,
                     plot_connectome,
-                    [("connectome", "connectome_file")],
+                    [
+                        ("connectome", "connectome_file"),
+                        ("labels_file", "labels_file"),
+                    ],
                 ),
                 (plot_connectome, merge_node, [("out_file", "in2")]),
             ]
