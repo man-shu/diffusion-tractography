@@ -9,3 +9,4 @@ scikit-image>=0.16.2
 niworkflows==1.12.1
 smriprep==0.17.0
 nimesh
+seaborn>=0.12.0

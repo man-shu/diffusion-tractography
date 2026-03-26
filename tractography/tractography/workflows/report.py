@@ -91,7 +91,7 @@ def plot_parcellation_on_t1w(parcellation_t1w, t1w_file, title="Parcellation on 
 
 
 def plot_connectome_heatmap(connectome_file, title="Structural Connectome", labels_file=None):
-    """Plot a connectome matrix as a heatmap using nilearn.
+    """Plot the lower-triangular connectome matrix as a seaborn heatmap.
 
     Parameters
     ----------
@@ -111,8 +111,8 @@ def plot_connectome_heatmap(connectome_file, title="Structural Connectome", labe
         Path to output SVG file
     """
     import numpy as np
-    from nilearn.plotting import plot_matrix
     import matplotlib.pyplot as plt
+    import seaborn as sns
     import os
 
     matrix = np.loadtxt(connectome_file, delimiter=",")
@@ -133,14 +133,39 @@ def plot_connectome_heatmap(connectome_file, title="Structural Connectome", labe
                 # LUT format: index name [R G B alpha]
                 labels.append(parts[1] if len(parts) >= 2 else parts[0])
 
-    fig, ax = plt.subplots(figsize=(10, 8))
-    plot_matrix(
+    # Mask the strictly upper triangle so only the lower triangle + diagonal
+    # are filled, matching the style of a standard connectome visualisation
+    mask = np.zeros_like(matrix_log, dtype=bool)
+    mask[np.triu_indices_from(mask, k=1)] = True
+
+    n = matrix_log.shape[0]
+    # Scale figure size with number of regions to avoid label crowding
+    fig_size = max(11, n * 0.18)
+    fontsize = max(6, min(10, 120 // n))
+
+    fig, ax = plt.subplots(figsize=(fig_size, fig_size * 0.9))
+
+    sns.heatmap(
         matrix_log,
-        title=title,
-        axes=ax,
-        colorbar=True,
-        labels=labels,
+        mask=mask,
+        cmap="viridis",
+        square=True,
+        linewidths=0,
+        cbar_kws={"shrink": 0.5, "label": "log(1 + streamline count)"},
+        ax=ax,
+        xticklabels=labels if labels is not None else False,
+        yticklabels=labels if labels is not None else False,
     )
+
+    if labels is not None:
+        ax.set_xticklabels(
+            ax.get_xticklabels(), rotation=40, ha="right", fontsize=fontsize
+        )
+        ax.set_yticklabels(
+            ax.get_yticklabels(), rotation=0, fontsize=fontsize
+        )
+
+    ax.set_title(title, fontsize=fontsize + 2)
 
     out_file = "connectome_heatmap.svg"
     fig.savefig(out_file, format="svg", bbox_inches="tight")
