@@ -1,0 +1,20 @@
+{
+    "preprocessed_dwi": {
+        "acquisition": "AxCaliber1",
+        "desc": "mppcadenoised+gibbsunringed+eddycorrected+bbreg"
+    },
+    "bval": {
+        "acquisition": "AxCaliber1"
+    },
+    "rotated_bvec": {
+        "acquisition": "AxCaliber1",
+        "desc": "rotated"
+    },
+    "surfaces_t1": {
+        "suffix": "pial",
+        "den": null
+    },
+    "space2t1w_xfm": {
+        "from": "MNI152NLin6Asym"
+    }
+}
