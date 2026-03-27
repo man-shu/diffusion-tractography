@@ -1,0 +1,60 @@
+{
+  "Name": "Welsh Advanced Neuroimaging Database",
+  "BIDSVersion": "1.8.0",
+  "License": "CC-BY-SA",
+  "Authors": [
+      "Carolyn B McNabb", 
+      "Ian D Driver", 
+      "Vanessa Hyde", 
+      "Garin Hughes", 
+      "Hannah L Chandler", 
+      "Hannah Thomas", 
+      "Christopher Allen", 
+      "Eirini Messaritaki", 
+      "Carl J Hodgetts", 
+      "Craig Hedge", 
+      "Maria Engel", 
+      "Sophie F Standen", 
+      "Emma L Morgan", 
+      "Elena Stylianopoulou", 
+      "Svetla Manolova", 
+      "Lucie Reed", 
+      "Mark Drakesmith", 
+      "Michael Germuska", 
+      "Alexander D Shaw", 
+      "Lars Mueller", 
+      "Holly Rossiter", 
+      "Christopher W Davies-Jenkins", 
+      "Tom Lancaster",
+      "John Evans", 
+      "David Owen", 
+      "Gavin Perry", 
+      "Slawomir Kusmir", 
+      "Emily Lambe", 
+      "Adam Partridge", 
+      "Allison Cooper", 
+      "Peter Hobden", 
+      "Hanzhang Lu",
+      "Kim S Graham",
+      "Andrew D Lawrence", 
+      "Richard G Wise", 
+      "James T R Walters", 
+      "Petroc Sumner", 
+      "Krish D Singh", 
+      "Derek K Jones"
+  ],
+  "Acknowledgements": 
+      "Olivier Mougin (University of Nottingham) developed the phase-sensitive inversion recovery and T1 code. William Clarke (Oxford University) provided the image reconstruction code for the MP2RAGE. Thomos Wizel (formally MGH, now GBIO) helped to set up the diffusion sequences on the Connectom scanner",
+  "HowToAcknowledge": "Please cite this dataset: McNabb CB, et al., The Welsh Advanced Neuroimaging Database: an open-source state-of-the-art resource for brain research, Proceedings of the International Society for Magnetic Resonance in Medicine (ISMRM), 2024",
+  "Funding": [
+      "WAND data were acquired at the UK National Facility for In Vivo MR Imaging of Human Tissue Microstructure funded by the EPSRC (grant EP/M029778/1), and The Wolfson Foundation",
+      "WAND was supported by a Wellcome Trust Investigator Award (096646/Z/11/Z) and a Wellcome Trust Strategic Award (104943/Z/14/Z)",
+      "The UK Medical Research Council (MR/M008932/1), the Welsh Government and Cardiff University provided funding support for the CUBRIC ultra-high field imaging facility"
+  ],
+  "EthicsApprovals": [
+    "The study was approved by the Cardiff University School of Psychology Ethics Committee; all participants gave permission for their anonymised data to be shared with researchers in other organisations and deposited in publicly accessible databases."
+  ],
+  "ReferencesAndLinks": [
+  "WAND data can be found here: https://gin.g-node.org/CUBRIC/WAND"
+  ]
+}
