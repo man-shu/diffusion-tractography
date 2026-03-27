@@ -1,0 +1,254 @@
+# Metadata for DOI registration according to DataCite Metadata Schema 4.1.
+# For detailed schema description see https://doi.org/10.5438/0014
+#
+# The information in this file will be used to create the DOI record and
+# the landing page for the registered resource.
+#
+# Please replace the template entries by the corresponding information for your resource.
+# For detailed instructions see https://gin.g-node.org/G-Node/Info/wiki/DOI
+# Comments (lines starting with '#') may be removed.
+
+## Required fields
+
+# authors: The researchers involved.
+# Include digital identifier (e.g., ORCID) if possible, including the prefix to indicate its type.
+# All authors listed here need to have agreed to the publication.
+authors:
+  -
+    firstname: "Carolyn B"
+    lastname: "McNabb"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+    id: "ORCID:0000-0002-6434-5177"
+  -
+    firstname: "Ian D"
+    lastname: "Driver"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Vanessa"
+    lastname: "Hyde"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Garin"
+    lastname: "Hughes"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Hannah L"
+    lastname: "Chandler"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Hannah"
+    lastname: "Thomas"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Christopher"
+    lastname: "Allen"
+    affiliation: "Department of Psychology, Durham University, Durham, United Kingdom"
+  -
+    firstname: "Eirini"
+    lastname: "Messaritaki"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Carl J"
+    lastname: "Hodgetts"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom; Department of Psychology, Royal Holloway, University of London, Egham, United Kingdom"
+  -
+    firstname: "Craig"
+    lastname: "Hedge"
+    affiliation: "School of Psychology, Aston University, Birmingham, United Kingdom"
+  -
+    firstname: "Maria"
+    lastname: "Engel"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Sophie F"
+    lastname: "Standen"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Emma L"
+    lastname: "Morgan"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Elena"
+    lastname: "Stylianopoulou"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Svetla"
+    lastname: "Manalova"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Lucie"
+    lastname: "Reed"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Matthew"
+    lastname: "Ploszajski"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Mark"
+    lastname: "Drakesmith"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Michael"
+    lastname: "Germuska"
+    affiliation: "Department of Radiology, University of California Davis Medical Center, Sacramento, California, USA"
+  -
+    firstname: "Alexander D"
+    lastname: "Shaw"
+    affiliation: "Washington Singer Laboratories, University of Exeter, Exeter, United Kingdom"
+  -
+    firstname: "Lars"
+    lastname: "Mueller"
+    affiliation: "Leeds Institute of Cardiovascular and Metabolic Medicine, University of Leeds, Leeds, United Kingdom"
+  -
+    firstname: "Holly"
+    lastname: "Rossiter"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Christopher W"
+    lastname: "Davies-Jenkins"
+    affiliation: "The Russell H. Morgan Department of Radiology and Radiological Science, Johns Hopkins University School of Medicine, Baltimore, Maryland, USA; F.M. Kirby Research Center for Functional Brain Imaging, Kennedy Kreiger Institute, Baltimore, Maryland, USA"
+  -
+    firstname: "Tom"
+    lastname: "Lancaster"
+    affiliation: "Department of Psychology, University of Bath, Bath, United Kingdom"
+  -
+    firstname: "C John"
+    lastname: "Evans"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "David"
+    lastname: "Owen"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Gavin"
+    lastname: "Perry"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Slawomir"
+    lastname: "Kusmia"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom; IBM Polska Sp. z o. o., Department of Content Design, Cracow, Poland"
+  -
+    firstname: "Emily"
+    lastname: "Lambe"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Adam M"
+    lastname: "Partridge"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom; University of Sheffield, Research Services, New Spring House, 231 Glossop Road, Sheffield, S10 2GW, UK"
+  -
+    firstname: "Allison"
+    lastname: "Cooper"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Peter"
+    lastname: "Hobden"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Hanzhang"
+    lastname: "Lu"
+    affiliation: "The Russell H. Morgan Department of Radiology and Radiological Science, Johns Hopkins University School of Medicine, Baltimore, Maryland, USA; F.M. Kirby Research Center for Functional Brain Imaging, Kennedy Kreiger Institute, Baltimore, Maryland, USA"
+  -
+    firstname: "Kim S"
+    lastname: "Graham"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom; School of Philosophy, Psychology and Language Sciences, Dugald Stewart Building, University of Edinburgh, 3 Charles Street, Edinburgh, EH8 9AD, UK"
+  -
+    firstname: "Andrew D"
+    lastname: "Lawrence"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom; School of Philosophy, Psychology and Language Sciences, Dugald Stewart Building, University of Edinburgh, 3 Charles Street, Edinburgh, EH8 9AD, UK"
+  -
+    firstname: "Richard G"
+    lastname: "Wise"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom; Department of Neurosciences, Imaging, and Clinical Sciences, 'G. D'Annunzio' University of Chieti-Pescara, Chieti, Italy; Institute for Advanced Biomedical Technologies, 'G. D'Annunzio' University of Chieti-Pescara, Chieti, Italy"
+  -
+    firstname: "James T R"
+    lastname: "Walters"
+    affiliation: "School of Medicine, Centre for Neuropsychiatric Genetics and Genomics, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Petroc"
+    lastname: "Sumner"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Krish D"
+    lastname: "Singh"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+  -
+    firstname: "Derek K"
+    lastname: "Jones"
+    affiliation: "Cardiff University Brain Research Imaging Centre, School of Psychology, Cardiff University, Cardiff, United Kingdom"
+
+# title: A title to identify the published resource.
+title: "The Welsh Advanced Neuroimaging Database (WAND)"
+
+# description: A brief abstract describing the resource.
+description: |
+  The Welsh Advanced Neuroimaging Database (WAND) is a multi-scale, multi-modal imaging dataset comprising in vivo brain data from 170 healthy volunteers (aged 18-63 years), including 3 Tesla (3T) magnetic resonance imaging (MRI) with ultra-strong (300 mT/m) magnetic field gradients, structural and functional MRI and nuclear magnetic resonance spectroscopy at 3T and 7T, magnetoencephalography (MEG), and transcranial magnetic stimulation (TMS), together with trait questionnaire and cognitive data.  
+  
+# keywords: List of keywords for the resource.
+# Provide as many keywords as possible, to make the resource findable.
+# For keyword suggestions, see https://doi.gin.g-node.org/keywords/
+keywords:
+  - Magnetic resonance imaging
+  - MRI, diffusion MRI
+  - ultra-strong magnetic gradients
+  - magnetoencephalography
+  - MEG
+  - structural MRI
+  - fMRI
+  - arterial spin labelling
+  - ASL
+  - magnetic resonance spectroscopy
+  - MRS
+  - transcranial magnetic stimulation
+  - TMS
+  - 7T MRI 
+
+
+# license: License information for this resource. Please provide the license name and a link to the license.
+# The Welsh Advanced Neuroimaging Database (WAND) © 2024 by Carolyn B McNabb, Ian D Driver, Vanessa Hyde, Garin Hughes, Hannah L Chandler, Hannah Thomas, Christopher Allen, Eirini Messaritaki, Carl J Hodgetts, Craig Hedge, Maria Engel, Sophie F Standen, Emma L Morgan, Elena Stylianopoulou, Svetla Manolova, Lucie Reed, Matthew Ploszajski, Mark Drakesmith, Michael Germuska, Alexander D Shaw, Lars Mueller, Holly Rossiter, Christopher W Davies-Jenkins, Tom Lancaster, C John Evans, David Owen, Gavin Perry, Slawomir Kusmia, Emily Lambe, Adam M Partridge, Allison Cooper, Peter Hobden, Hanzhang Lu, Kim S Graham, Andrew D Lawrence, Richard G Wise, James T R Walters, Petroc Sumner, Krish D Singh, and Derek K Jones is licensed under CC BY 4.0 
+license:
+  name: "Creative Commons Attribution 4.0 International Public License"
+  url: "https://creativecommons.org/licenses/by/4.0"
+
+## Optional fields
+
+# funding: Funding information for this resource.
+# Separate funder name and grant number by a semicolon.
+funding:
+  - "EPSRC; EP/M029778/1"
+  - "The Wolfson Foundation"
+  - "Wellcome Trust; 096646/Z/11/Z"
+  - "Wellcome Trust; 104943/Z/14/Z"
+
+
+# references: Digital resources related to this publication, such as research articles, data, or code
+# If this publication is supplement to a research paper, a reference to the paper is mandatory.
+#
+#  id: Please provide digital identifier (e.g., DOI, arXiv, PMID, URL) if possible.
+#   Add a prefix to the ID, separated by a colon, to indicate the type of identifier.
+#   If assignment of an identifier is pending, enter "doi:tba" as placeholder.
+#
+#  reftype: The relationship of this publication to the referenced resource.
+#   IsSupplementTo: to reference a research paper that is supplemented by this publication
+#   IsDescribedBy: to reference a data descriptor of a dataset publication
+#   IsReferencedBy: to reference code or other resources that use this publication.
+#   (for further reftypes see the Datacite schema description https://doi.org/10.5438/0014) 
+#
+#  citation: Please provide the full reference, including title, authors, journal etc., like in the reference section of a paper.
+#   If an unpublished manuscript is referenced, enter as much citation information as available, and update when the paper is published.
+#
+references:
+  -
+    id: "doi:tba"
+    reftype: "IsSupplementTo"
+    citation: "Carolyn B McNabb, Ian D Driver, Vanessa Hyde, Garin Hughes, Hannah L Chandler, Hannah Thomas, Christopher Allen, Eirini Messaritaki, Carl J Hodgetts, Craig Hedge, Maria Engel, Sophie F Standen, Emma L Morgan, Elena Stylianopoulou, Svetla Manolova, Lucie Reed, Matthew Ploszajski, Mark Drakesmith, Michael Germuska, Alexander D Shaw, Lars Mueller, Holly Rossiter, Christopher W Davies-Jenkins, Tom Lancaster, C John Evans, David Owen, Gavin Perry, Slawomir Kusmia, Emily Lambe, Adam M Partridge, Allison Cooper, Peter Hobden, Hanzhang Lu, Kim S Graham, Andrew D Lawrence,, Richard G Wise, James T R Walters, Petroc Sumner, Krish D Singh, and Derek K Jones (2024) WAND: A multi-modal dataset integrating advanced MRI, MEG, and TMS for multi-scale brain analysis."
+  -
+    id: "https://git.cardiff.ac.uk/cubric/wand"
+    reftype: "IsReferencedBy"
+    citation: "Setup and usage instructions for the Welsh Advanced Neuroimaging Database (WAND). Gitlab. https://git.cardiff.ac.uk/cubric/wand"
+
+
+# Resource type. Default is Dataset, other possible values are Software, Text, Preprint.
+resourcetype: Dataset
+
+# Do not edit or remove the following line
+templateversion: 1.2
