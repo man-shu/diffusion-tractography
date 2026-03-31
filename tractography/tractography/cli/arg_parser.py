@@ -133,7 +133,8 @@ def get_parser():
         action="store",
         type=int,
         default=1,
-        help="Number of threads to use for tractography (tckgen). Default: 1",
+        help="Number of threads to use for tractography (tckgen) and FOD estimation."
+        " Default: 1",
     )
     g_other.add_argument(
         "--labels-file",
