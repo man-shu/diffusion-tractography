@@ -171,6 +171,7 @@ def _set_inputs_outputs(config, tracto_wf):
                     ("output.rotated_bvec", "rotated_bvec"),
                     ("output.t1_dseg", "t1_dseg"),
                     ("output.space2t1w_xfm", "space2t1w_xfm"),
+                    ("output.surfaces_t1", "surfaces_t1"),
                     ("decode_entities.bids_entities", "bids_entities"),
                 ],
             ),
@@ -262,6 +263,7 @@ def _tracto_wf(
                 "space2t1w_xfm",
                 "parcellation_file",
                 "labels_file",
+                "surfaces_t1",
             ],
         ),
         name="input_subject",
@@ -514,6 +516,11 @@ def _tracto_wf(
                     apply_transform_parc,
                     report,
                     [("output_image", "report_inputnode.parcellation_t1w")],
+                ),
+                (
+                    input_subject,
+                    report,
+                    [("surfaces_t1", "report_inputnode.surfaces_t1")],
                 ),
             ]
         )

@@ -90,11 +90,62 @@ def plot_parcellation_on_t1w(parcellation_t1w, t1w_file, title="Parcellation on 
     return os.path.abspath(out_file)
 
 
-def plot_connectome_interactive(connectome_file, parcellation_t1w):
-    """Generate an interactive 3D connectome visualisation using nilearn.
+def _make_connectome_html_with_surfaces(connectome_info, pial_left, pial_right):
+    """Like nilearn's _make_connectome_html but uses subject-specific pial surfaces.
 
-    Node positions are derived from the centroids of each parcel in the
-    parcellation image registered to T1w space.
+    Parameters
+    ----------
+    connectome_info : dict
+        Output of nilearn's _get_connectome.
+    pial_left, pial_right : str
+        Paths to the left/right pial GIfTI files in T1w space.
+
+    Returns
+    -------
+    ConnectomeView
+    """
+    import json
+    from nilearn import datasets
+    from nilearn.plotting.html_connectome import ConnectomeView
+    from nilearn.plotting.js_plotting_utils import (
+        add_js_lib,
+        get_html_template,
+        mesh_to_plotly,
+    )
+
+    plot_info = {"connectome": connectome_info}
+
+    # Use subject surfaces where available, fall back to fsaverage otherwise
+    fsaverage = None
+    for key, surf_path in [("pial_left", pial_left), ("pial_right", pial_right)]:
+        if surf_path is not None:
+            plot_info[key] = mesh_to_plotly(surf_path)
+        else:
+            if fsaverage is None:
+                fsaverage = datasets.fetch_surf_fsaverage()
+            plot_info[key] = mesh_to_plotly(fsaverage[key])
+
+    as_json = json.dumps(plot_info)
+    as_html = get_html_template("connectome_plot_template.html").safe_substitute(
+        {
+            "INSERT_CONNECTOME_JSON_HERE": as_json,
+            "INSERT_PAGE_TITLE_HERE": (
+                connectome_info.get("title") or "Connectome plot"
+            ),
+        }
+    )
+    as_html = add_js_lib(as_html, embed_js=True)
+    return ConnectomeView(as_html)
+
+
+def plot_connectome_interactive(connectome_file, parcellation_t1w, surfaces_t1=None):
+    """Generate an interactive 3D connectome visualization on the subject's
+    pial surface.
+
+    Uses nilearn's ``_get_connectome`` to prepare node/edge data and a
+    custom ``_make_connectome_html_with_surfaces`` that substitutes the
+    fsaverage mesh with the subject-specific pial GIfTI files from sMRIprep.
+    Falls back to fsaverage for any missing hemisphere.
 
     Parameters
     ----------
@@ -102,6 +153,9 @@ def plot_connectome_interactive(connectome_file, parcellation_t1w):
         Path to the connectome CSV produced by tck2connectome.
     parcellation_t1w : str
         Path to the parcellation NIfTI in T1w space.
+    surfaces_t1 : list of str or None
+        Paths to the left and right pial surface GIfTI files in T1w/fsnative
+        space from sMRIprep derivatives.
 
     Returns
     -------
@@ -111,7 +165,7 @@ def plot_connectome_interactive(connectome_file, parcellation_t1w):
     import numpy as np
     import nibabel as nib
     from scipy import ndimage
-    from nilearn.plotting import view_connectome
+    from nilearn.plotting.html_connectome import _get_connectome
 
     matrix = np.loadtxt(connectome_file, delimiter=",")
     matrix = matrix + matrix.T - np.diag(np.diag(matrix))
@@ -131,7 +185,29 @@ def plot_connectome_interactive(connectome_file, parcellation_t1w):
 
     node_coords = np.array(node_coords)
 
-    view = view_connectome(matrix, node_coords, edge_threshold="80%")
+    connectome_info = _get_connectome(
+        matrix,
+        node_coords,
+        threshold="80%",
+    )
+    connectome_info["line_width"] = 6.0
+    connectome_info["colorbar"] = True
+    connectome_info["cbar_height"] = 0.5
+    connectome_info["cbar_fontsize"] = 25
+    connectome_info["title"] = "Structural Connectome"
+    connectome_info["title_fontsize"] = 25
+
+    # Identify left/right surfaces from filenames
+    pial_left, pial_right = None, None
+    if surfaces_t1 is not None:
+        surf_files = surfaces_t1 if isinstance(surfaces_t1, list) else [surfaces_t1]
+        for f in surf_files:
+            if "hemi-L" in f:
+                pial_left = f
+            elif "hemi-R" in f:
+                pial_right = f
+
+    view = _make_connectome_html_with_surfaces(connectome_info, pial_left, pial_right)
     return view.get_iframe()
 
 
@@ -322,7 +398,7 @@ def init_report_wf(calling_wf_name, output_dir, name="report", has_connectome=Fa
                 "bids_entities",
                 "streamlines",
                 "t1w",
-                *(["connectome", "labels_file", "parcellation_t1w"] if has_connectome else []),
+                *(["connectome", "labels_file", "parcellation_t1w", "surfaces_t1"] if has_connectome else []),
             ]
         ),
         name="report_inputnode",
@@ -362,9 +438,9 @@ def init_report_wf(calling_wf_name, output_dir, name="report", has_connectome=Fa
         plot_connectome = Node(PlotConnectome, name="plot_connectome")
         plot_connectome.inputs.title = "Structural Connectome"
 
-        # Interactive 3D connectome visualisation
+        # Interactive 3D connectome visualisation on subject pial surface
         PlotConnectomeInteractive = Function(
-            input_names=["connectome_file", "parcellation_t1w"],
+            input_names=["connectome_file", "parcellation_t1w", "surfaces_t1"],
             output_names=["html_str"],
             function=plot_connectome_interactive,
         )
@@ -458,6 +534,7 @@ def init_report_wf(calling_wf_name, output_dir, name="report", has_connectome=Fa
                     [
                         ("connectome", "connectome_file"),
                         ("parcellation_t1w", "parcellation_t1w"),
+                        ("surfaces_t1", "surfaces_t1"),
                     ],
                 ),
                 (
