@@ -54,6 +54,7 @@ jobs:
         if: always()
         run: |
           OUTPUT_DIR="${{ github.workspace }}/data/WAND-downsampled/derivatives/diffusion_tractography"
+          mkdir -p "$OUTPUT_DIR"
           sudo apt-get install -y tree -qq
           tree -H '.' -T 'QA Output — ${{ github.sha }}' \
             --nolinks "$OUTPUT_DIR" \
