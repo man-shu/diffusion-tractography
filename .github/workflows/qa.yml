@@ -61,12 +61,11 @@ jobs:
           git fetch origin gh-pages
           git worktree add /tmp/gh-pages gh-pages
 
-          # Copy pipeline output into gh-pages
-          DEST="/tmp/gh-pages/qa-output/${{ github.sha }}"
-          mkdir -p "$DEST"
+          # Copy pipeline output into gh-pages root
+          DEST="/tmp/gh-pages"
           cp -r "$OUTPUT_DIR"/. "$DEST/" || true
 
-          # Generate index.html outside the listed directory, then move it in
+          # Generate index.html at the root of gh-pages
           tree -H '.' -T 'QA Output — ${{ github.sha }}' \
             "$DEST" > /tmp/index.html || true
           mv /tmp/index.html "$DEST/index.html"
@@ -83,7 +82,7 @@ jobs:
         if: always()
         run: |
           echo "QA output published at:"
-          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/qa-output/${{ github.sha }}/"
+          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
 
       - name: Upload pipeline outputs as artifact
         if: always()
