@@ -61,14 +61,15 @@ jobs:
           git fetch origin gh-pages
           git worktree add /tmp/gh-pages gh-pages
 
-          # Copy pipeline output into gh-pages root
-          DEST="/tmp/gh-pages"
+          # Copy pipeline output into a subdirectory
+          DEST="/tmp/gh-pages/latest"
+          mkdir -p "$DEST"
           cp -r "$OUTPUT_DIR"/. "$DEST/" || true
 
-          # Generate index.html at the root of gh-pages
-          tree -H '.' -T 'QA Output — ${{ github.sha }}' \
+          # Generate index.html for the latest run only, place it at gh-pages root
+          tree -H 'latest' -T 'QA Output — ${{ github.sha }}' \
             "$DEST" > /tmp/index.html || true
-          mv /tmp/index.html "$DEST/index.html"
+          mv /tmp/index.html "/tmp/gh-pages/index.html"
 
           # Commit and push to gh-pages
           cd /tmp/gh-pages
