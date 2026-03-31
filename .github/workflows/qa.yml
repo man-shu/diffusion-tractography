@@ -68,7 +68,7 @@ jobs:
 
           # Generate index.html outside the listed directory, then move it in
           tree -H '.' -T 'QA Output — ${{ github.sha }}' \
-            --nolinks "$DEST" > /tmp/index.html || true
+            "$DEST" > /tmp/index.html || true
           mv /tmp/index.html "$DEST/index.html"
 
           # Commit and push to gh-pages
