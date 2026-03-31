@@ -50,24 +50,34 @@ jobs:
             --labels-file /data/Schaefer2018_100Parcels_7Networks_order.txt \
             --n-streamlines 10000
 
-      - name: Generate directory index
+      - name: Deploy output to GitHub Pages
         if: always()
         run: |
           OUTPUT_DIR="${{ github.workspace }}/data/WAND-downsampled/derivatives/diffusion_tractography"
           mkdir -p "$OUTPUT_DIR"
           sudo apt-get install -y tree -qq
-          tree -H '.' -T 'QA Output — ${{ github.sha }}' \
-            --nolinks "$OUTPUT_DIR" \
-            -o "$OUTPUT_DIR/index.html" || true
 
-      - name: Deploy output to GitHub Pages
-        if: always()
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ${{ github.workspace }}/data/WAND-downsampled/derivatives/diffusion_tractography
-          destination_dir: qa-output/${{ github.sha }}
-          keep_files: true
+          # Checkout gh-pages branch into a separate directory
+          git fetch origin gh-pages
+          git worktree add /tmp/gh-pages gh-pages
+
+          # Copy pipeline output into gh-pages
+          DEST="/tmp/gh-pages/qa-output/${{ github.sha }}"
+          mkdir -p "$DEST"
+          cp -r "$OUTPUT_DIR"/. "$DEST/" || true
+
+          # Generate index.html outside the listed directory, then move it in
+          tree -H '.' -T 'QA Output — ${{ github.sha }}' \
+            --nolinks "$DEST" > /tmp/index.html || true
+          mv /tmp/index.html "$DEST/index.html"
+
+          # Commit and push to gh-pages
+          cd /tmp/gh-pages
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add .
+          git commit -m "QA output for ${{ github.sha }}" || true
+          git push origin gh-pages
 
       - name: Print GitHub Pages URL
         if: always()
