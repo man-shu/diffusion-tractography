@@ -90,6 +90,51 @@ def plot_parcellation_on_t1w(parcellation_t1w, t1w_file, title="Parcellation on 
     return os.path.abspath(out_file)
 
 
+def plot_connectome_interactive(connectome_file, parcellation_t1w):
+    """Generate an interactive 3D connectome visualisation using nilearn.
+
+    Node positions are derived from the centroids of each parcel in the
+    parcellation image registered to T1w space.
+
+    Parameters
+    ----------
+    connectome_file : str
+        Path to the connectome CSV produced by tck2connectome.
+    parcellation_t1w : str
+        Path to the parcellation NIfTI in T1w space.
+
+    Returns
+    -------
+    html_str : str
+        An ``<iframe>`` HTML string ready for embedding in a report.
+    """
+    import numpy as np
+    import nibabel as nib
+    from scipy import ndimage
+    from nilearn.plotting import view_connectome
+
+    matrix = np.loadtxt(connectome_file, delimiter=",")
+    matrix = matrix + matrix.T - np.diag(np.diag(matrix))
+
+    parc_img = nib.load(parcellation_t1w)
+    parc_data = parc_img.get_fdata()
+    affine = parc_img.affine
+
+    labels = np.unique(parc_data)
+    labels = sorted(labels[labels > 0].astype(int))
+
+    node_coords = []
+    for label in labels:
+        voxel_coords = ndimage.center_of_mass(parc_data == label)
+        world_coords = nib.affines.apply_affine(affine, voxel_coords)
+        node_coords.append(world_coords)
+
+    node_coords = np.array(node_coords)
+
+    view = view_connectome(matrix, node_coords, edge_threshold="80%")
+    return view.get_iframe()
+
+
 def plot_connectome_heatmap(connectome_file, title="Structural Connectome", labels_file=None):
     """Plot the lower-triangular connectome matrix as a seaborn heatmap.
 
@@ -186,6 +231,7 @@ def create_html_report(
     bids_entities,
     plots,
     n_streamlines=10000000,
+    plot_connectome_interactive=None,
 ):
     import os
     import string
@@ -210,6 +256,7 @@ def create_html_report(
             "plot_connectome": _not_available,
             "plot_parc_t1w": _not_available,
             "n_streamlines": f"{n_streamlines:,}",
+            "plot_connectome_interactive": plot_connectome_interactive or _not_available,
         }
         plot_names = ["plot_tdi_t1w", "plot_connectome", "plot_parc_t1w"]
 
@@ -315,6 +362,16 @@ def init_report_wf(calling_wf_name, output_dir, name="report", has_connectome=Fa
         plot_connectome = Node(PlotConnectome, name="plot_connectome")
         plot_connectome.inputs.title = "Structural Connectome"
 
+        # Interactive 3D connectome visualisation
+        PlotConnectomeInteractive = Function(
+            input_names=["connectome_file", "parcellation_t1w"],
+            output_names=["html_str"],
+            function=plot_connectome_interactive,
+        )
+        plot_connectome_interactive_node = Node(
+            PlotConnectomeInteractive, name="plot_connectome_interactive"
+        )
+
         # Plot parcellation overlaid on T1w for registration QC
         PlotParcT1W = Function(
             input_names=["parcellation_t1w", "t1w_file", "title"],
@@ -337,6 +394,7 @@ def init_report_wf(calling_wf_name, output_dir, name="report", has_connectome=Fa
             "bids_entities",
             "plots",
             "n_streamlines",
+            "plot_connectome_interactive",
         ],
         output_names=["out_file"],
         function=create_html_report,
@@ -394,6 +452,19 @@ def init_report_wf(calling_wf_name, output_dir, name="report", has_connectome=Fa
                     ],
                 ),
                 (plot_connectome, merge_node, [("out_file", "in2")]),
+                (
+                    inputnode,
+                    plot_connectome_interactive_node,
+                    [
+                        ("connectome", "connectome_file"),
+                        ("parcellation_t1w", "parcellation_t1w"),
+                    ],
+                ),
+                (
+                    plot_connectome_interactive_node,
+                    create_html,
+                    [("html_str", "plot_connectome_interactive")],
+                ),
                 (
                     inputnode,
                     plot_parc_t1w,
