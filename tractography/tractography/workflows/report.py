@@ -185,6 +185,7 @@ def create_html_report(
     output_dir,
     bids_entities,
     plots,
+    n_streamlines=10000000,
 ):
     import os
     import string
@@ -208,6 +209,7 @@ def create_html_report(
             "subject_id": subject_id,
             "plot_connectome": _not_available,
             "plot_parc_t1w": _not_available,
+            "n_streamlines": f"{n_streamlines:,}",
         }
         plot_names = ["plot_tdi_t1w", "plot_connectome", "plot_parc_t1w"]
 
@@ -247,7 +249,7 @@ def create_html_report(
     return out_file
 
 
-def init_report_wf(calling_wf_name, output_dir, name="report", has_connectome=False):
+def init_report_wf(calling_wf_name, output_dir, name="report", has_connectome=False, n_streamlines=10000000):
     """Create a workflow to generate a report for the diffusion preprocessing
     pipeline.
 
@@ -334,6 +336,7 @@ def init_report_wf(calling_wf_name, output_dir, name="report", has_connectome=Fa
             "output_dir",
             "bids_entities",
             "plots",
+            "n_streamlines",
         ],
         output_names=["out_file"],
         function=create_html_report,
@@ -343,6 +346,7 @@ def init_report_wf(calling_wf_name, output_dir, name="report", has_connectome=Fa
     create_html.inputs.report_wf_name = name
     create_html.inputs.template_path = REPORT_TEMPLATE
     create_html.inputs.output_dir = output_dir
+    create_html.inputs.n_streamlines = n_streamlines
 
     workflow = Workflow(name=name, base_dir=output_dir)
     workflow.connect(

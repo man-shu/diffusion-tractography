@@ -383,6 +383,7 @@ def _tracto_wf(
         calling_wf_name=name,
         output_dir=output_dir,
         has_connectome=bool(has_parcellation),
+        n_streamlines=nstreamlines,
     )
 
     # Build workflow
