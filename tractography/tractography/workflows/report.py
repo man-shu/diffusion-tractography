@@ -198,7 +198,8 @@ def plot_connectome_interactive(
     connectome_info = _get_connectome(
         matrix,
         node_coords,
-        threshold="80%",
+        threshold="95%",
+        symmetric_cmap=False,
     )
     connectome_info["line_width"] = 6.0
     connectome_info["colorbar"] = True
@@ -222,7 +223,10 @@ def plot_connectome_interactive(
     view = _make_connectome_html_with_surfaces(
         connectome_info, pial_left, pial_right
     )
-    return view.get_iframe()
+    iframe = view.get_iframe()
+    # Make the iframe fill the full container width
+    iframe = iframe.replace('width="600"', 'width="100%"', 1)
+    return iframe
 
 
 def plot_connectome_heatmap(
