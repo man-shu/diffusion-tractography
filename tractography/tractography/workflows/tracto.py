@@ -119,7 +119,9 @@ def init_tracto_wf(output_dir=".", config=None):
         if config and getattr(config, "n_streamlines", None)
         else 10000000
     )
-    wf = _tracto_wf(output_dir=output_dir, config=config, nstreamlines=nstreamlines)
+    wf = _tracto_wf(
+        output_dir=output_dir, config=config, nstreamlines=nstreamlines
+    )
     wf = _set_inputs_outputs(config, wf)
     return wf
 
@@ -296,6 +298,13 @@ def _tracto_wf(
     estimate_fod.inputs.wm_odf = "wm_fod.mif"
     estimate_fod.inputs.gm_odf = "gm_fod.mif"
     estimate_fod.inputs.csf_odf = "csf_fod.mif"
+    # Set nthreads if config provides it
+    if (
+        config
+        and hasattr(config, "n_threads")
+        and config.n_threads is not None
+    ):
+        estimate_fod.inputs.nthreads = config.n_threads
 
     # ===== Anatomical Processing =====
 
@@ -338,7 +347,7 @@ def _tracto_wf(
         and hasattr(config, "n_threads")
         and config.n_threads is not None
     ):
-        tckgen.inputs.nthreads = 30
+        tckgen.inputs.nthreads = config.n_threads
 
     # ===== Connectome Nodes (optional — only when parcellation_file is provided) =====
 
@@ -353,7 +362,9 @@ def _tracto_wf(
         )
         apply_transform_parc.inputs.interpolation = "NearestNeighbor"
         apply_transform_parc.inputs.output_image = "parcellation_t1w.nii.gz"
-        apply_transform_parc.inputs.input_image_type = 0  # scalar / label image
+        apply_transform_parc.inputs.input_image_type = (
+            0  # scalar / label image
+        )
 
         # Compute structural connectome from streamlines and parcellation
         tck2connectome = Node(
