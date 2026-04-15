@@ -202,7 +202,6 @@ def plot_connectome_interactive(
         node_coords,
         threshold="95%",
         symmetric_cmap=False,
-        threshold=500,
     )
     connectome_info["line_width"] = 6.0
     connectome_info["colorbar"] = True
