@@ -44,6 +44,8 @@ def plot_tdi_on_image(tdi_file, background_file, title="Track Density"):
         title=title,
         display_mode="mosaic",
         colorbar=True,
+        cmap="autumn",
+        threshold=500,
     )
 
     # Save as SVG
@@ -200,6 +202,7 @@ def plot_connectome_interactive(
         node_coords,
         threshold="95%",
         symmetric_cmap=False,
+        threshold=500,
     )
     connectome_info["line_width"] = 6.0
     connectome_info["colorbar"] = True
@@ -278,10 +281,10 @@ def plot_connectome_heatmap(
                 # LUT format: index name [R G B alpha]
                 labels.append(parts[1] if len(parts) >= 2 else parts[0])
 
-    # Mask the strictly upper triangle so only the lower triangle + diagonal
-    # are filled, matching the style of a standard connectome visualisation
+    # Mask the upper triangle and diagonal so only the strict lower triangle
+    # is filled, matching the style of a standard connectome visualisation
     mask = np.zeros_like(matrix_log, dtype=bool)
-    mask[np.triu_indices_from(mask, k=1)] = True
+    mask[np.triu_indices_from(mask, k=0)] = True
 
     n = matrix_log.shape[0]
     # Scale figure size with number of regions to avoid label crowding
