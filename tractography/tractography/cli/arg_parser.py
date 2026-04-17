@@ -154,10 +154,17 @@ def get_parser():
         action="store",
         type=Path,
         default=None,
+        nargs="+",
         metavar="PATH",
-        help="Path to a parcellation/atlas NIfTI file in standard space. "
-        "When provided, the parcellation will be registered to T1w space "
-        "and a structural connectome will be computed via tck2connectome.",
+        help="Path(s) to parcellation/atlas NIfTI file(s) in standard space, "
+        "or a single directory containing NIfTI ROI files. "
+        "Accepts either a single multi-label parcellation, multiple binary "
+        "ROI masks (one ROI per file), or a directory of binary ROI masks. "
+        "When multiple files are given (or a directory is provided) they are "
+        "merged into a single parcellation (each ROI receives a unique integer "
+        "label); overlapping ROIs raise an error. The parcellation will be "
+        "registered to T1w space and a structural connectome will be computed "
+        "via tck2connectome.",
     )
 
     return parser

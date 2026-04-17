@@ -29,6 +29,49 @@ from .sink import init_sink_wf
 from .report import init_report_wf
 
 
+def _merge_roi_files(parcellation_files):
+    """Merge one or more ROI/parcellation files into a single labelled volume.
+
+    When a single file is supplied it is returned unchanged.  When multiple
+    binary ROI masks are supplied:
+
+    1. Each mask is binarised (non-zero → ROI voxel).
+    2. Overlapping voxels (covered by more than one mask) raise a ValueError.
+    3. Each ROI is assigned a unique integer label (1, 2, 3 …) and the masks
+       are combined into one NIfTI file that is written to the working
+       directory and returned.
+    """
+    import os
+    import nibabel as nib
+    import numpy as np
+
+    if isinstance(parcellation_files, str):
+        parcellation_files = [parcellation_files]
+
+    if len(parcellation_files) == 1:
+        return parcellation_files[0]
+
+    imgs = [nib.load(f) for f in parcellation_files]
+    arrays = [img.get_fdata() for img in imgs]
+    binary = [(a > 0).astype(np.uint8) for a in arrays]
+
+    overlap_map = sum(binary)
+    if np.any(overlap_map > 1):
+        n_vox = int(np.sum(overlap_map > 1))
+        raise ValueError(
+            f"ROI files overlap: {n_vox} voxel(s) are covered by more than "
+            f"one ROI file. Check your input parcellation files."
+        )
+
+    merged = np.zeros(arrays[0].shape, dtype=np.int32)
+    for label, mask in enumerate(binary, start=1):
+        merged[mask > 0] = label
+
+    out_file = os.path.abspath("merged_parcellation.nii.gz")
+    nib.save(nib.Nifti1Image(merged, imgs[0].affine, imgs[0].header), out_file)
+    return out_file
+
+
 # Custom Generate5tt interface with proper lut_file positioning
 class Generate5ttWithLUT(MRTrix3Base):
     """Generate5tt with LUT file support using explicit command line building."""
@@ -130,10 +173,31 @@ def _set_inputs_outputs(config, tracto_wf):
     # bids dataset
     bidsdata_wf = init_bidsdata_wf(config=config)
     # outputs
+    # config.parcellation_file is now a list (nargs="+") or None.
+    # If the single argument is a directory, expand it to all NIfTI files
+    # inside it (sorted for reproducibility).
+    parcellation_files = None
+    if config and getattr(config, "parcellation_file", None):
+        raw = config.parcellation_file  # list of Path objects
+        if len(raw) == 1 and raw[0].is_dir():
+            from pathlib import Path as _Path
+            roi_dir = raw[0]
+            parcellation_files = sorted(
+                str(p)
+                for p in roi_dir.iterdir()
+                if p.name.endswith(".nii") or p.name.endswith(".nii.gz")
+            )
+            if not parcellation_files:
+                raise ValueError(
+                    f"No NIfTI files found in parcellation directory: {roi_dir}"
+                )
+        else:
+            parcellation_files = [str(p) for p in raw]
+    # For sink naming: single file → use its stem; multiple → generic label
     parcellation_file = (
-        str(config.parcellation_file)
-        if config and getattr(config, "parcellation_file", None)
-        else None
+        parcellation_files[0]
+        if parcellation_files and len(parcellation_files) == 1
+        else ("multi_roi" if parcellation_files else None)
     )
     n_streamlines = (
         config.n_streamlines
@@ -146,9 +210,9 @@ def _set_inputs_outputs(config, tracto_wf):
         n_streamlines=n_streamlines,
     )
     # create the full workflow
-    if config and getattr(config, "parcellation_file", None):
-        tracto_wf.get_node("input_subject").inputs.parcellation_file = str(
-            config.parcellation_file
+    if parcellation_files:
+        tracto_wf.get_node("input_subject").inputs.parcellation_file = (
+            parcellation_files
         )
     if config and getattr(config, "labels_file", None):
         tracto_wf.get_node("input_subject").inputs.labels_file = str(
@@ -356,6 +420,17 @@ def _tracto_wf(
     has_parcellation = config and getattr(config, "parcellation_file", None)
 
     if has_parcellation:
+        # Merge multiple binary ROI masks into a single labelled parcellation
+        # (no-op when a single file is provided; raises if ROIs overlap)
+        merge_rois = Node(
+            interface=Function(
+                input_names=["parcellation_files"],
+                output_names=["out_file"],
+                function=_merge_roi_files,
+            ),
+            name="merge_rois",
+        )
+
         # Register parcellation from standard space to T1w space
         # NearestNeighbor interpolation preserves integer label values
         apply_transform_parc = Node(
@@ -478,12 +553,22 @@ def _tracto_wf(
     if has_parcellation:
         workflow.connect(
             [
+                # Merge ROI files (or pass through a single file unchanged)
+                (
+                    input_subject,
+                    merge_rois,
+                    [("parcellation_file", "parcellation_files")],
+                ),
                 # Transform parcellation from standard space to T1w space
+                (
+                    merge_rois,
+                    apply_transform_parc,
+                    [("out_file", "input_image")],
+                ),
                 (
                     input_subject,
                     apply_transform_parc,
                     [
-                        ("parcellation_file", "input_image"),
                         ("preprocessed_t1", "reference_image"),
                         ("space2t1w_xfm", "transforms"),
                     ],
