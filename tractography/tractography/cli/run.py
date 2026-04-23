@@ -71,7 +71,9 @@ def _run_pipeline(config):
     if config.debug:
         nipype_config.enable_debug_mode()
 
-    config._existing_outputs = _find_existing_outputs(config)
+    config._existing_outputs = (
+        _find_existing_outputs(config) if getattr(config, "reuse_outputs", False) else {}
+    )
 
     # create the pipeline
     wf = init_tracto_wf(
