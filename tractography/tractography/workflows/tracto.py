@@ -180,19 +180,29 @@ def _set_inputs_outputs(config, tracto_wf):
     if config and getattr(config, "parcellation_file", None):
         raw = config.parcellation_file  # list of Path objects
         if len(raw) == 1 and raw[0].is_dir():
-            from pathlib import Path as _Path
-            roi_dir = raw[0]
+            _roi_dir = raw[0]
             parcellation_files = sorted(
                 str(p)
-                for p in roi_dir.iterdir()
+                for p in _roi_dir.iterdir()
                 if p.name.endswith(".nii") or p.name.endswith(".nii.gz")
             )
             if not parcellation_files:
                 raise ValueError(
-                    f"No NIfTI files found in parcellation directory: {roi_dir}"
+                    f"No NIfTI files found in parcellation directory: {_roi_dir}"
                 )
         else:
             parcellation_files = [str(p) for p in raw]
+    elif config and getattr(config, "roi_dir", None):
+        _roi_dir = config.roi_dir
+        parcellation_files = sorted(
+            str(p)
+            for p in _roi_dir.iterdir()
+            if p.name.endswith(".nii") or p.name.endswith(".nii.gz")
+        )
+        if not parcellation_files:
+            raise ValueError(
+                f"No NIfTI files found in roi-dir: {_roi_dir}"
+            )
     # For sink naming: single file → use its stem; multiple → generic label
     parcellation_file = (
         parcellation_files[0]
@@ -269,7 +279,7 @@ def _set_inputs_outputs(config, tracto_wf):
                         [("connectome", "diffusion_tractography.@connectome")],
                     )
                 ]
-                if config and getattr(config, "parcellation_file", None)
+                if parcellation_files
                 else []
             ),
             (
@@ -417,7 +427,10 @@ def _tracto_wf(
 
     # ===== Connectome Nodes (optional — only when parcellation_file is provided) =====
 
-    has_parcellation = config and getattr(config, "parcellation_file", None)
+    has_parcellation = config and (
+        getattr(config, "parcellation_file", None)
+        or getattr(config, "roi_dir", None)
+    )
 
     if has_parcellation:
         # Merge multiple binary ROI masks into a single labelled parcellation

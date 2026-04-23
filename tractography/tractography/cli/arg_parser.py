@@ -80,11 +80,35 @@ def get_parser():
     )
 
     g_other = parser.add_argument_group("Other options")
-    g_other.add_argument(
+    g_parc = g_other.add_mutually_exclusive_group()
+    g_parc.add_argument(
         "--roi-dir",
         action="store",
         type=Path,
-        help="path where ROI images are stored",
+        metavar="PATH",
+        help="Directory containing NIfTI ROI files. All NIfTI files in the "
+        "directory are treated as non-overlapping binary ROI masks, merged "
+        "into a single labelled parcellation, and a structural connectome is "
+        "computed via tck2connectome. Overlapping ROIs raise an error. "
+        "Mutually exclusive with --parcellation-file.",
+    )
+    g_parc.add_argument(
+        "--parcellation-file",
+        "--parcellation_file",
+        action="store",
+        type=Path,
+        default=None,
+        nargs="+",
+        metavar="PATH",
+        help="Path(s) to parcellation/atlas NIfTI file(s) in standard space, "
+        "or a single directory containing NIfTI ROI files. "
+        "Accepts a single multi-label parcellation, multiple binary ROI masks "
+        "(one ROI per file), or a directory of binary ROI masks. "
+        "When multiple files or a directory are provided, masks are merged into "
+        "a single parcellation (each ROI receives a unique integer label); "
+        "overlapping ROIs raise an error. The parcellation will be registered "
+        "to T1w space and a structural connectome will be computed via "
+        "tck2connectome. Mutually exclusive with --roi-dir.",
     )
     g_other.add_argument(
         "-w",
@@ -147,24 +171,6 @@ def get_parser():
         "LUT .txt file from the Schaefer atlas). Each line should contain "
         "an index and a region name separated by whitespace. When provided, "
         "region names are used as tick labels on the connectome heatmap.",
-    )
-    g_other.add_argument(
-        "--parcellation-file",
-        "--parcellation_file",
-        action="store",
-        type=Path,
-        default=None,
-        nargs="+",
-        metavar="PATH",
-        help="Path(s) to parcellation/atlas NIfTI file(s) in standard space, "
-        "or a single directory containing NIfTI ROI files. "
-        "Accepts either a single multi-label parcellation, multiple binary "
-        "ROI masks (one ROI per file), or a directory of binary ROI masks. "
-        "When multiple files are given (or a directory is provided) they are "
-        "merged into a single parcellation (each ROI receives a unique integer "
-        "label); overlapping ROIs raise an error. The parcellation will be "
-        "registered to T1w space and a structural connectome will be computed "
-        "via tck2connectome.",
     )
 
     return parser
