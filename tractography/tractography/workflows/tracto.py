@@ -29,6 +29,29 @@ from .sink import init_sink_wf
 from .report import init_report_wf
 
 
+def _passthrough_file(path):
+    """Return a pre-existing file path, raising if it is missing."""
+    import os
+
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Expected pre-existing file not found: {path}")
+    return path
+
+
+def _make_passthrough_node(file_path, node_name):
+    """Create a Nipype Function node that returns a pre-existing file unchanged."""
+    node = Node(
+        Function(
+            input_names=["path"],
+            output_names=["out_file"],
+            function=_passthrough_file,
+        ),
+        name=node_name,
+    )
+    node.inputs.path = file_path
+    return node
+
+
 def _merge_roi_files(parcellation_files):
     """Merge one or more ROI/parcellation files into a single labelled volume.
 
@@ -324,6 +347,12 @@ def _tracto_wf(
         Base output directory
     """
 
+    existing = getattr(config, "_existing_outputs", {})
+    skip_fod = bool(
+        existing.get("wm_fod") and existing.get("gm_fod") and existing.get("csf_fod")
+    )
+    skip_tractography = bool(existing.get("tractography"))
+
     input_subject = Node(
         IdentityInterface(
             fields=[
@@ -345,42 +374,47 @@ def _tracto_wf(
 
     # ===== DWI Processing with MrTrix3 =====
 
-    # Convert preprocessed DWI to MIF format
-    # Uses bvec/bval files in FSL format
-    dwi2mif = Node(
-        interface=MRConvert(),
-        name="dwi2mif",
-    )
-    dwi2mif.inputs.out_file = "dwi.mif"
+    if skip_fod:
+        # Reuse pre-existing FOD files; bypass DWI conversion, response estimation, FOD estimation
+        existing_wm_fod = _make_passthrough_node(existing["wm_fod"], "existing_wm_fod")
+        existing_gm_fod = _make_passthrough_node(existing["gm_fod"], "existing_gm_fod")
+        existing_csf_fod = _make_passthrough_node(existing["csf_fod"], "existing_csf_fod")
+    else:
+        # Convert preprocessed DWI to MIF format
+        # Uses bvec/bval files in FSL format
+        dwi2mif = Node(
+            interface=MRConvert(),
+            name="dwi2mif",
+        )
+        dwi2mif.inputs.out_file = "dwi.mif"
 
-    # Derive response functions using Dhollander algorithm
-    # This estimates WM, GM, and CSF response functions
-    response_wm = Node(
-        interface=ResponseSD(),
-        name="response_wm",
-    )
-    response_wm.inputs.algorithm = "dhollander"
-    response_wm.inputs.wm_file = "wm_response.txt"
-    response_wm.inputs.gm_file = "gm_response.txt"
-    response_wm.inputs.csf_file = "csf_response.txt"
+        # Derive response functions using Dhollander algorithm
+        # This estimates WM, GM, and CSF response functions
+        response_wm = Node(
+            interface=ResponseSD(),
+            name="response_wm",
+        )
+        response_wm.inputs.algorithm = "dhollander"
+        response_wm.inputs.wm_file = "wm_response.txt"
+        response_wm.inputs.gm_file = "gm_response.txt"
+        response_wm.inputs.csf_file = "csf_response.txt"
 
-    # Estimate fiber orientation distributions (FOD) using multi-shell multi-tissue CSD
-    estimate_fod = Node(
-        interface=EstimateFOD(),
-        name="estimate_fod",
-    )
-    estimate_fod.inputs.algorithm = "msmt_csd"
-    estimate_fod.inputs.max_sh = [8, 8, 8]  # lmax for WM, GM, CSF tissues
-    estimate_fod.inputs.wm_odf = "wm_fod.mif"
-    estimate_fod.inputs.gm_odf = "gm_fod.mif"
-    estimate_fod.inputs.csf_odf = "csf_fod.mif"
-    # Set nthreads if config provides it
-    if (
-        config
-        and hasattr(config, "n_threads")
-        and config.n_threads is not None
-    ):
-        estimate_fod.inputs.nthreads = config.n_threads
+        # Estimate fiber orientation distributions (FOD) using multi-shell multi-tissue CSD
+        estimate_fod = Node(
+            interface=EstimateFOD(),
+            name="estimate_fod",
+        )
+        estimate_fod.inputs.algorithm = "msmt_csd"
+        estimate_fod.inputs.max_sh = [8, 8, 8]  # lmax for WM, GM, CSF tissues
+        estimate_fod.inputs.wm_odf = "wm_fod.mif"
+        estimate_fod.inputs.gm_odf = "gm_fod.mif"
+        estimate_fod.inputs.csf_odf = "csf_fod.mif"
+        if (
+            config
+            and hasattr(config, "n_threads")
+            and config.n_threads is not None
+        ):
+            estimate_fod.inputs.nthreads = config.n_threads
 
     # ===== Anatomical Processing =====
 
@@ -404,26 +438,30 @@ def _tracto_wf(
 
     # ===== Streamline Generation =====
 
-    # Generate streamlines using ACT (Anatomically Constrained Tractography)
-    tckgen = Node(
-        interface=TractographyWithNThreads(),
-        name="tckgen",
-    )
-    tckgen.inputs.algorithm = "iFOD2"  # Improved Fiber ODFs
-    tckgen.inputs.select = nstreamlines  # Number of streamlines to generate
-    tckgen.inputs.max_length = max_len  # Maximum length in mm
-    tckgen.inputs.min_length = 10  # Minimum length in mm
-    tckgen.inputs.cutoff = cutoff  # FOD amplitude cutoff
-    tckgen.inputs.backtrack = True  # Allow backtracking
-    tckgen.inputs.out_file = "streamlines.tck"
-
-    # Set nthreads if config provides it
-    if (
-        config
-        and hasattr(config, "n_threads")
-        and config.n_threads is not None
-    ):
-        tckgen.inputs.nthreads = config.n_threads
+    if skip_tractography:
+        # Reuse pre-existing tractography file; bypass streamline generation
+        existing_tractography = _make_passthrough_node(
+            existing["tractography"], "existing_tractography"
+        )
+    else:
+        # Generate streamlines using ACT (Anatomically Constrained Tractography)
+        tckgen = Node(
+            interface=TractographyWithNThreads(),
+            name="tckgen",
+        )
+        tckgen.inputs.algorithm = "iFOD2"  # Improved Fiber ODFs
+        tckgen.inputs.select = nstreamlines  # Number of streamlines to generate
+        tckgen.inputs.max_length = max_len  # Maximum length in mm
+        tckgen.inputs.min_length = 10  # Minimum length in mm
+        tckgen.inputs.cutoff = cutoff  # FOD amplitude cutoff
+        tckgen.inputs.backtrack = True  # Allow backtracking
+        tckgen.inputs.out_file = "streamlines.tck"
+        if (
+            config
+            and hasattr(config, "n_threads")
+            and config.n_threads is not None
+        ):
+            tckgen.inputs.nthreads = config.n_threads
 
     # ===== Connectome Nodes (optional — only when parcellation_file is provided) =====
 
@@ -489,72 +527,14 @@ def _tracto_wf(
 
     # Build workflow
     workflow = Workflow(name=name, base_dir=output_dir)
+
+    # Anatomical processing connections (always run)
     workflow.connect(
         [
-            # DWI to MIF conversion with bvec/bval
-            (
-                input_subject,
-                dwi2mif,
-                [
-                    ("preprocessed_dwi", "in_file"),
-                    ("rotated_bvec", "in_bvec"),
-                    ("bval", "in_bval"),
-                ],
-            ),
-            # Response function estimation from DWI
-            (dwi2mif, response_wm, [("out_file", "in_file")]),
-            (
-                input_subject,
-                response_wm,
-                [
-                    ("rotated_bvec", "in_bvec"),
-                    ("bval", "in_bval"),
-                    ("preprocessed_t1_mask", "in_mask"),
-                ],
-            ),
-            # FOD estimation using response functions
-            (dwi2mif, estimate_fod, [("out_file", "in_file")]),
-            (
-                input_subject,
-                estimate_fod,
-                [
-                    ("rotated_bvec", "in_bvec"),
-                    ("bval", "in_bval"),
-                    ("preprocessed_t1_mask", "mask_file"),
-                ],
-            ),
-            (
-                response_wm,
-                estimate_fod,
-                [
-                    ("wm_file", "wm_txt"),
-                    ("gm_file", "gm_txt"),
-                    ("csf_file", "csf_txt"),
-                ],
-            ),
-            # Anatomical processing: Generate 5-tissue segmentation from dseg
             (input_subject, generate5tt, [("t1_dseg", "in_file")]),
-            # Generate GM/WM boundary from 5-tissue segmentation
             (generate5tt, gmwm_boundary, [("out_file", "in_file")]),
-            # Generate streamlines with anatomical constraints
-            # All processing is in T1 space
-            (estimate_fod, tckgen, [("wm_odf", "in_file")]),
-            (generate5tt, tckgen, [("out_file", "act_file")]),
-            (gmwm_boundary, tckgen, [("mask_out", "seed_gmwmi")]),
-            # Collect outputs
-            (tckgen, output_subject, [("out_file", "streamlines")]),
-            (
-                estimate_fod,
-                output_subject,
-                [
-                    ("wm_odf", "wm_fod"),
-                    ("gm_odf", "gm_fod"),
-                    ("csf_odf", "csf_fod"),
-                ],
-            ),
             (gmwm_boundary, output_subject, [("mask_out", "gmwm_boundary")]),
             (generate5tt, output_subject, [("out_file", "t1_5tt")]),
-            # Connect tractography outputs to report
             (
                 input_subject,
                 report,
@@ -563,7 +543,100 @@ def _tracto_wf(
         ]
     )
 
+    if skip_fod:
+        # Wire pre-existing FOD passthrough nodes to downstream consumers
+        workflow.connect(
+            [
+                (existing_wm_fod, output_subject, [("out_file", "wm_fod")]),
+                (existing_gm_fod, output_subject, [("out_file", "gm_fod")]),
+                (existing_csf_fod, output_subject, [("out_file", "csf_fod")]),
+            ]
+        )
+        if not skip_tractography:
+            # FOD is pre-existing but tractography must be computed
+            workflow.connect(
+                [
+                    (existing_wm_fod, tckgen, [("out_file", "in_file")]),
+                    (generate5tt, tckgen, [("out_file", "act_file")]),
+                    (gmwm_boundary, tckgen, [("mask_out", "seed_gmwmi")]),
+                ]
+            )
+    else:
+        # Compute FOD from scratch
+        workflow.connect(
+            [
+                (
+                    input_subject,
+                    dwi2mif,
+                    [
+                        ("preprocessed_dwi", "in_file"),
+                        ("rotated_bvec", "in_bvec"),
+                        ("bval", "in_bval"),
+                    ],
+                ),
+                (dwi2mif, response_wm, [("out_file", "in_file")]),
+                (
+                    input_subject,
+                    response_wm,
+                    [
+                        ("rotated_bvec", "in_bvec"),
+                        ("bval", "in_bval"),
+                        ("preprocessed_t1_mask", "in_mask"),
+                    ],
+                ),
+                (dwi2mif, estimate_fod, [("out_file", "in_file")]),
+                (
+                    input_subject,
+                    estimate_fod,
+                    [
+                        ("rotated_bvec", "in_bvec"),
+                        ("bval", "in_bval"),
+                        ("preprocessed_t1_mask", "mask_file"),
+                    ],
+                ),
+                (
+                    response_wm,
+                    estimate_fod,
+                    [
+                        ("wm_file", "wm_txt"),
+                        ("gm_file", "gm_txt"),
+                        ("csf_file", "csf_txt"),
+                    ],
+                ),
+                (
+                    estimate_fod,
+                    output_subject,
+                    [
+                        ("wm_odf", "wm_fod"),
+                        ("gm_odf", "gm_fod"),
+                        ("csf_odf", "csf_fod"),
+                    ],
+                ),
+            ]
+        )
+        if not skip_tractography:
+            workflow.connect(
+                [
+                    (estimate_fod, tckgen, [("wm_odf", "in_file")]),
+                    (generate5tt, tckgen, [("out_file", "act_file")]),
+                    (gmwm_boundary, tckgen, [("mask_out", "seed_gmwmi")]),
+                ]
+            )
+
+    if skip_tractography:
+        workflow.connect(
+            [(existing_tractography, output_subject, [("out_file", "streamlines")])]
+        )
+    else:
+        workflow.connect(
+            [(tckgen, output_subject, [("out_file", "streamlines")])]
+        )
+
     if has_parcellation:
+        # Determine which node provides the tractography file for tck2connectome
+        tck_source = existing_tractography if skip_tractography else tckgen
+        tck_output_field = "out_file"
+
         workflow.connect(
             [
                 # Merge ROI files (or pass through a single file unchanged)
@@ -587,7 +660,7 @@ def _tracto_wf(
                     ],
                 ),
                 # Compute connectome from streamlines and T1w-space parcellation
-                (tckgen, tck2connectome, [("out_file", "in_file")]),
+                (tck_source, tck2connectome, [(tck_output_field, "in_file")]),
                 (
                     apply_transform_parc,
                     tck2connectome,
