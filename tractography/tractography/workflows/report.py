@@ -45,7 +45,7 @@ def plot_tdi_on_image(tdi_file, background_file, title="Track Density"):
         display_mode="mosaic",
         colorbar=True,
         cmap="autumn",
-        threshold=1,
+        threshold=500,
     )
 
     # Save as SVG
