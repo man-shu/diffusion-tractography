@@ -57,10 +57,23 @@ def _merge_roi_files(parcellation_files):
 
     overlap_map = sum(binary)
     if np.any(overlap_map > 1):
-        n_vox = int(np.sum(overlap_map > 1))
+        overlap_mask = overlap_map > 1
+        total_vox = binary[0].size
+        pairs = []
+        for i in range(len(binary)):
+            for j in range(i + 1, len(binary)):
+                n = int(np.sum(binary[i] & binary[j]))
+                if n > 0:
+                    pct = 100.0 * n / total_vox
+                    pairs.append((os.path.basename(parcellation_files[i]),
+                                  os.path.basename(parcellation_files[j]), pct))
+        pair_lines = "\n".join(
+            f"  {a} <-> {b}: {pct:.2f}% overlap" for a, b, pct in pairs
+        )
+        total_pct = 100.0 * int(np.sum(overlap_mask)) / total_vox
         raise ValueError(
-            f"ROI files overlap: {n_vox} voxel(s) are covered by more than "
-            f"one ROI file. Check your input parcellation files."
+            f"ROI files overlap: {total_pct:.2f}% of voxels are covered by "
+            f"more than one ROI file.\nOverlapping pairs:\n{pair_lines}"
         )
 
     merged = np.zeros(arrays[0].shape, dtype=np.int32)
