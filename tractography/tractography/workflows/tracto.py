@@ -29,9 +29,6 @@ from .sink import init_sink_wf
 from .report import init_report_wf
 
 
-_ENGULF_THRESHOLD = 30.0  # % of a ROI's own voxels that may overlap before it is dropped
-
-
 def _merge_roi_files(parcellation_files):
     """Merge one or more ROI/parcellation files into a single labelled volume.
 
@@ -39,9 +36,9 @@ def _merge_roi_files(parcellation_files):
     binary ROI masks are supplied:
 
     1. Each mask is binarised (non-zero → ROI voxel).
-    2. Any ROI whose voxels are more than _ENGULF_THRESHOLD % covered by
-       another ROI is considered engulfed: it is silently dropped and a
-       warning is emitted to the nipype log.
+    2. Any ROI whose voxels are more than 30 % covered by another ROI is
+       considered engulfed: it is silently dropped and a warning is emitted
+       to the nipype log.
     3. If after dropping engulfed ROIs any overlap remains, a ValueError is
        raised listing the offending pairs with per-ROI overlap percentages.
     4. Each surviving ROI is assigned a unique integer label (1, 2, 3 …) and
@@ -52,6 +49,10 @@ def _merge_roi_files(parcellation_files):
     import nibabel as nib
     import numpy as np
 
+    # Must be defined inside the function — nipype serialises the body as a
+    # string and exec-s it in an isolated scope, so module-level names are
+    # not visible.
+    _ENGULF_THRESHOLD = 30.0
     logger = logging.getLogger("nipype.interface")
 
     if isinstance(parcellation_files, str):
