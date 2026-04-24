@@ -29,6 +29,9 @@ from .sink import init_sink_wf
 from .report import init_report_wf
 
 
+_ENGULF_THRESHOLD = 30.0  # % of a ROI's own voxels that may overlap before it is dropped
+
+
 def _merge_roi_files(parcellation_files):
     """Merge one or more ROI/parcellation files into a single labelled volume.
 
@@ -36,14 +39,20 @@ def _merge_roi_files(parcellation_files):
     binary ROI masks are supplied:
 
     1. Each mask is binarised (non-zero → ROI voxel).
-    2. Overlapping voxels (covered by more than one mask) raise a ValueError.
-    3. Each ROI is assigned a unique integer label (1, 2, 3 …) and the masks
-       are combined into one NIfTI file that is written to the working
-       directory and returned.
+    2. Any ROI whose voxels are more than _ENGULF_THRESHOLD % covered by
+       another ROI is considered engulfed: it is silently dropped and a
+       warning is emitted to the nipype log.
+    3. If after dropping engulfed ROIs any overlap remains, a ValueError is
+       raised listing the offending pairs with per-ROI overlap percentages.
+    4. Each surviving ROI is assigned a unique integer label (1, 2, 3 …) and
+       the masks are combined into one NIfTI file.
     """
     import os
+    import logging
     import nibabel as nib
     import numpy as np
+
+    logger = logging.getLogger("nipype.interface")
 
     if isinstance(parcellation_files, str):
         parcellation_files = [parcellation_files]
@@ -54,34 +63,73 @@ def _merge_roi_files(parcellation_files):
     imgs = [nib.load(f) for f in parcellation_files]
     arrays = [img.get_fdata() for img in imgs]
     binary = [(a > 0).astype(np.uint8) for a in arrays]
+    names = [os.path.basename(f) for f in parcellation_files]
 
-    overlap_map = sum(binary)
-    if np.any(overlap_map > 1):
-        overlap_mask = overlap_map > 1
-        total_vox = binary[0].size
-        pairs = []
-        for i in range(len(binary)):
-            for j in range(i + 1, len(binary)):
-                n = int(np.sum(binary[i] & binary[j]))
-                if n > 0:
-                    pct = 100.0 * n / total_vox
-                    pairs.append((os.path.basename(parcellation_files[i]),
-                                  os.path.basename(parcellation_files[j]), pct))
-        pair_lines = "\n".join(
-            f"  {a} <-> {b}: {pct:.2f}% overlap" for a, b, pct in pairs
-        )
-        total_pct = 100.0 * int(np.sum(overlap_mask)) / total_vox
+    # Identify engulfed ROIs (pairwise)
+    to_drop = set()
+    for i in range(len(binary)):
+        for j in range(i + 1, len(binary)):
+            n = int(np.sum(binary[i] & binary[j]))
+            if n == 0:
+                continue
+            pct_i = 100.0 * n / max(int(binary[i].sum()), 1)
+            pct_j = 100.0 * n / max(int(binary[j].sum()), 1)
+            if pct_i > _ENGULF_THRESHOLD:
+                logger.warning(
+                    "merge_rois: dropping '%s' — %.1f%% of its voxels overlap "
+                    "with '%s' (threshold %.0f%%)",
+                    names[i], pct_i, names[j], _ENGULF_THRESHOLD,
+                )
+                to_drop.add(i)
+            if pct_j > _ENGULF_THRESHOLD:
+                logger.warning(
+                    "merge_rois: dropping '%s' — %.1f%% of its voxels overlap "
+                    "with '%s' (threshold %.0f%%)",
+                    names[j], pct_j, names[i], _ENGULF_THRESHOLD,
+                )
+                to_drop.add(j)
+
+    kept = [(i, imgs[i], binary[i]) for i in range(len(binary)) if i not in to_drop]
+
+    if not kept:
         raise ValueError(
-            f"ROI files overlap: {total_pct:.2f}% of voxels are covered by "
-            f"more than one ROI file.\nOverlapping pairs:\n{pair_lines}"
+            "All ROI files were dropped due to excessive overlap "
+            f"(>{_ENGULF_THRESHOLD:.0f}%). Check your input parcellation files.\n"
+            "Files: " + ", ".join(names)
+        )
+
+    if len(kept) == 1:
+        return parcellation_files[kept[0][0]]
+
+    kept_indices, kept_imgs, kept_binary = zip(*kept)
+
+    # Remaining overlaps are an error
+    overlap_map = sum(kept_binary)
+    if np.any(overlap_map > 1):
+        pairs = []
+        for i in range(len(kept_binary)):
+            for j in range(i + 1, len(kept_binary)):
+                n = int(np.sum(kept_binary[i] & kept_binary[j]))
+                if n > 0:
+                    pct_i = 100.0 * n / max(int(kept_binary[i].sum()), 1)
+                    pct_j = 100.0 * n / max(int(kept_binary[j].sum()), 1)
+                    pairs.append((names[kept_indices[i]], names[kept_indices[j]],
+                                  n, pct_i, pct_j))
+        pair_lines = "\n".join(
+            f"  {a} <-> {b}: {n} vox ({pi:.1f}% of {a}, {pj:.1f}% of {b})"
+            for a, b, n, pi, pj in pairs
+        )
+        raise ValueError(
+            f"ROI files overlap after dropping engulfed regions.\n"
+            f"Overlapping pairs:\n{pair_lines}"
         )
 
     merged = np.zeros(arrays[0].shape, dtype=np.int32)
-    for label, mask in enumerate(binary, start=1):
+    for label, mask in enumerate(kept_binary, start=1):
         merged[mask > 0] = label
 
     out_file = os.path.abspath("merged_parcellation.nii.gz")
-    nib.save(nib.Nifti1Image(merged, imgs[0].affine, imgs[0].header), out_file)
+    nib.save(nib.Nifti1Image(merged, kept_imgs[0].affine, kept_imgs[0].header), out_file)
     return out_file
 
 
