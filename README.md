@@ -55,6 +55,26 @@
 
     ```
 
+  - Note that we are relying heavily on bids filtering to select the relevant preprocessed files for tractography. In this example the `bids_filter.json` file contains the following content:
+
+    ```json
+    {
+        "preprocessed_dwi": {
+            "desc": "mppcadenoised+gibbsunringed+eddycorrected+bbreg"
+        },
+        "rotated_bvec": {
+            "desc": "rotated"
+        },
+        "surfaces_t1": {
+            "suffix": "pial",
+            "den": null
+        },
+        "space2t1w_xfm": {
+            "from": "MNI152NLin6Asym"
+        }
+    }
+    ```
+
 - If you're using a machine with ARM architecture (for example, Apple M1), you may need to specify the platform explicitly with the `--platform` flag:
 
     ```bash
