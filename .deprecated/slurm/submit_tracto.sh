@@ -22,6 +22,6 @@ srun singularity exec \
 --work-dir /home/input/cache \
 --participant-label ${dirs[${SLURM_ARRAY_TASK_ID}]:69} \
 --session-label ses-01 \
---roi-dir /home/input/rois \
+--roi-dir /home/input/rois-selected \
 --bids-filter /home/input/bids_filter.json \
 --debug
