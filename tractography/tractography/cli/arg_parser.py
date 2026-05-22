@@ -161,6 +161,17 @@ def get_parser():
         " Default: 1",
     )
     g_other.add_argument(
+        "--reuse-outputs",
+        "--reuse_outputs",
+        action="store_true",
+        default=False,
+        help="Reuse pre-existing FOD and tractography outputs found in the output "
+        "directory, skipping their recomputation. All three FOD files "
+        "(wm/gm/csf) must be present to skip FOD estimation. The tractography "
+        "file must match the requested --n-streamlines count to be reused. "
+        "Downstream steps (5tt, connectome, report) always run.",
+    )
+    g_other.add_argument(
         "--labels-file",
         "--labels_file",
         action="store",
